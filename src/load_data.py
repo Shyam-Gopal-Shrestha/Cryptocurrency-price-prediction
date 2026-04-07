@@ -3,7 +3,7 @@ import pandas as pd
 import os
 
 # Folder where CSVs are saved
-HISTORICAL_DATA_DIR = "src/historical_data"
+HISTORICAL_DATA_DIR = os.path.join(os.path.dirname(__file__), "historical_data")
 
 def load_crypto_data(symbol):
     """
@@ -20,12 +20,26 @@ def load_crypto_data(symbol):
     # Build file path
     file_name = f"{symbol}_historical.csv"
     file_path = os.path.join(HISTORICAL_DATA_DIR, file_name)
-    
+
+    # Fallback directory: if path is not found in src/historical_data, try data/historical_data
     if not os.path.exists(file_path):
-        raise FileNotFoundError(f"CSV file not found: {file_path}. Run fetch_historical.py first.")
+        alt_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "data", "historical_data"))
+        alt_file_path = os.path.join(alt_dir, file_name)
+        if os.path.exists(alt_file_path):
+            file_path = alt_file_path
+            print(f"INFO: found historical file in alternative path: {file_path}")
+        else:
+            # Another fallback for local relative installs
+            alt_dir2 = os.path.abspath(os.path.join(os.path.dirname(__file__), "historical_data"))
+            alt_file_path2 = os.path.join(alt_dir2, file_name)
+            if os.path.exists(alt_file_path2):
+                file_path = alt_file_path2
+                print(f"INFO: found historical file in alternative path: {file_path}")
+            else:
+                raise FileNotFoundError(f"CSV file not found: {file_path}. Run fetch_historical.py first.")
     
     # Load CSV
-    df = pd.read_csv(file_path, index_col=0, parse_dates=True)
+    df = pd.read_csv(file_path, skiprows=3, names=["Date", "Open", "High", "Low", "Close", "Volume"], parse_dates=["Date"])
     
     # Check for missing values and drop if any
     if df.isnull().values.any():
