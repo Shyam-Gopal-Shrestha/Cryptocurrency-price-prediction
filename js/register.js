@@ -3,6 +3,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   const form = document.getElementById("registerForm");
   const feedback = document.getElementById("feedback");
+  const toggleIcons = document.querySelectorAll(".toggle-password");
 
   function showMessage(message, type = "error") {
     if (!feedback) return alert(message);
@@ -17,6 +18,23 @@ document.addEventListener("DOMContentLoaded", () => {
     feedback.className = "feedback";
     feedback.style.display = "none";
   }
+
+  toggleIcons.forEach((icon) => {
+    icon.addEventListener("click", () => {
+      const input = icon.parentElement.querySelector("input");
+      if (!input) return;
+
+      if (input.type === "password") {
+        input.type = "text";
+        icon.classList.remove("fa-eye");
+        icon.classList.add("fa-eye-slash");
+      } else {
+        input.type = "password";
+        icon.classList.remove("fa-eye-slash");
+        icon.classList.add("fa-eye");
+      }
+    });
+  });
 
   if (!form) {
     console.error("Form not found");
