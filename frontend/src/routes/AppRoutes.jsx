@@ -1,6 +1,7 @@
 import { Routes, Route } from "react-router-dom";
 import Login from "../pages/Auth/Login";
 import Signup from "../pages/Auth/Signup";
+import Home from "../pages/Dashboard/Home";
 import AdminDashboard from "../pages/Dashboard/AdminDashboard";
 import ResearcherDashboard from "../pages/Dashboard/ResearcherDashboard";
 import UserDashboard from "../pages/Dashboard/UserDashboard";
@@ -11,7 +12,7 @@ export default function AppRoutes() {
     <Routes>
       <Route path="/login" element={<Login />} />
       <Route path="/signup" element={<Signup />} />
-
+      <Route path="/" element={<Home />} />;
       <Route
         path="/admin"
         element={
@@ -20,7 +21,6 @@ export default function AppRoutes() {
           </ProtectedRoute>
         }
       />
-
       <Route
         path="/researcher"
         element={
@@ -29,7 +29,6 @@ export default function AppRoutes() {
           </ProtectedRoute>
         }
       />
-
       <Route
         path="/user"
         element={
