@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { loginUser } from "../services/authService";
 import { useNavigate, Link } from "react-router-dom";
+import Navbar from "../components/Navbar";
 
 export default function Login() {
   const navigate = useNavigate();
@@ -45,6 +46,16 @@ export default function Login() {
 
     try {
       const data = await loginUser({ email, password });
+
+      localStorage.setItem(
+        "authUser",
+        JSON.stringify({
+          username: data.username,
+          role: data.role,
+          email,
+        })
+      );
+
       showFeedback(data.message || "Login successful.", "success");
 
       setTimeout(() => {
@@ -55,7 +66,7 @@ export default function Login() {
         } else {
           navigate("/user-dashboard");
         }
-      }, 1200);
+      }, 1000);
     } catch (error) {
       showFeedback(error.message, "error");
     } finally {
@@ -65,63 +76,66 @@ export default function Login() {
 
   return (
     <div style={styles.page}>
-      <div style={styles.card}>
-        <h1 style={styles.title}>Welcome Back</h1>
-        <p style={styles.subtitle}>Sign in to continue.</p>
+      <Navbar />
+      <div style={styles.wrapper}>
+        <div style={styles.card}>
+          <h1 style={styles.title}>Welcome Back</h1>
+          <p style={styles.subtitle}>Sign in to continue.</p>
 
-        <form onSubmit={handleSubmit}>
-          <div style={styles.group}>
-            <label>Email Address</label>
-            <input
-              type="email"
-              name="email"
-              value={formData.email}
-              onChange={handleChange}
-              style={styles.input}
-            />
-          </div>
-
-          <div style={styles.group}>
-            <label>Password</label>
-            <div style={styles.passwordWrap}>
+          <form onSubmit={handleSubmit}>
+            <div style={styles.group}>
+              <label>Email Address</label>
               <input
-                type={showPassword ? "text" : "password"}
-                name="password"
-                value={formData.password}
+                type="email"
+                name="email"
+                value={formData.email}
                 onChange={handleChange}
                 style={styles.input}
               />
-              <button
-                type="button"
-                onClick={() => setShowPassword((prev) => !prev)}
-                style={styles.eyeBtn}
+            </div>
+
+            <div style={styles.group}>
+              <label>Password</label>
+              <div style={styles.passwordWrap}>
+                <input
+                  type={showPassword ? "text" : "password"}
+                  name="password"
+                  value={formData.password}
+                  onChange={handleChange}
+                  style={styles.input}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((prev) => !prev)}
+                  style={styles.eyeBtn}
+                >
+                  {showPassword ? "Hide" : "Show"}
+                </button>
+              </div>
+            </div>
+
+            {message && (
+              <div
+                style={{
+                  ...styles.feedback,
+                  backgroundColor:
+                    messageType === "success" ? "#123524" : "#3b1c22",
+                  color: messageType === "success" ? "#bbf7d0" : "#fecaca",
+                }}
               >
-                {showPassword ? "Hide" : "Show"}
-              </button>
-            </div>
-          </div>
+                {message}
+              </div>
+            )}
 
-          {message && (
-            <div
-              style={{
-                ...styles.feedback,
-                backgroundColor:
-                  messageType === "success" ? "#123524" : "#3b1c22",
-                color: messageType === "success" ? "#bbf7d0" : "#fecaca",
-              }}
-            >
-              {message}
-            </div>
-          )}
+            <button type="submit" style={styles.button} disabled={loading}>
+              {loading ? "Signing In..." : "Sign In"}
+            </button>
+          </form>
 
-          <button type="submit" style={styles.button} disabled={loading}>
-            {loading ? "Signing In..." : "Sign In"}
-          </button>
-        </form>
-
-        <p style={styles.linkText}>
-          Do not have an account? <Link to="/register">Register here</Link>
-        </p>
+          <p style={styles.linkText}>
+            Do not have an account? <Link to="/register">Register here</Link>
+          </p>
+        </div>
       </div>
     </div>
   );
@@ -130,10 +144,13 @@ export default function Login() {
 const styles = {
   page: {
     minHeight: "100vh",
+    background: "linear-gradient(135deg, #0f172a, #111827, #1e293b)",
+  },
+  wrapper: {
+    minHeight: "calc(100vh - 72px)",
     display: "flex",
     justifyContent: "center",
     alignItems: "center",
-    background: "linear-gradient(135deg, #0f172a, #111827, #1e293b)",
     padding: "20px",
   },
   card: {

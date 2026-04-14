@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { registerUser } from "../services/authService";
 import { useNavigate, Link } from "react-router-dom";
+import Navbar from "../components/Navbar";
 
 export default function Register() {
   const navigate = useNavigate();
@@ -80,110 +81,113 @@ export default function Register() {
 
   return (
     <div style={styles.page}>
-      <div style={styles.card}>
-        <h1 style={styles.title}>Create Your Account</h1>
-        <p style={styles.subtitle}>
-          Register to access Ansush Cryptocurrency Price Prediction.
-        </p>
+      <Navbar />
+      <div style={styles.wrapper}>
+        <div style={styles.card}>
+          <h1 style={styles.title}>Create Your Account</h1>
+          <p style={styles.subtitle}>
+            Register to access Ansush Cryptocurrency Price Prediction.
+          </p>
 
-        <form onSubmit={handleSubmit}>
-          <div style={styles.group}>
-            <label>Full Name</label>
-            <input
-              type="text"
-              name="fullname"
-              value={formData.fullname}
-              onChange={handleChange}
-              style={styles.input}
-            />
-          </div>
-
-          <div style={styles.group}>
-            <label>Email Address</label>
-            <input
-              type="email"
-              name="email"
-              value={formData.email}
-              onChange={handleChange}
-              style={styles.input}
-            />
-          </div>
-
-          <div style={styles.group}>
-            <label>Role</label>
-            <select
-              name="role"
-              value={formData.role}
-              onChange={handleChange}
-              style={styles.input}
-            >
-              <option value="user">User</option>
-              <option value="admin">Admin</option>
-              <option value="researcher">Researcher</option>
-            </select>
-          </div>
-
-          <div style={styles.group}>
-            <label>Password</label>
-            <div style={styles.passwordWrap}>
+          <form onSubmit={handleSubmit}>
+            <div style={styles.group}>
+              <label>Full Name</label>
               <input
-                type={showPassword ? "text" : "password"}
-                name="password"
-                value={formData.password}
+                type="text"
+                name="fullname"
+                value={formData.fullname}
                 onChange={handleChange}
                 style={styles.input}
               />
-              <button
-                type="button"
-                onClick={() => setShowPassword((prev) => !prev)}
-                style={styles.eyeBtn}
-              >
-                {showPassword ? "Hide" : "Show"}
-              </button>
             </div>
-          </div>
 
-          <div style={styles.group}>
-            <label>Confirm Password</label>
-            <div style={styles.passwordWrap}>
+            <div style={styles.group}>
+              <label>Email Address</label>
               <input
-                type={showConfirmPassword ? "text" : "password"}
-                name="confirmPassword"
-                value={formData.confirmPassword}
+                type="email"
+                name="email"
+                value={formData.email}
                 onChange={handleChange}
                 style={styles.input}
               />
-              <button
-                type="button"
-                onClick={() => setShowConfirmPassword((prev) => !prev)}
-                style={styles.eyeBtn}
+            </div>
+
+            <div style={styles.group}>
+              <label>Role</label>
+              <select
+                name="role"
+                value={formData.role}
+                onChange={handleChange}
+                style={styles.input}
               >
-                {showConfirmPassword ? "Hide" : "Show"}
-              </button>
+                <option value="user">User</option>
+                <option value="admin">Admin</option>
+                <option value="researcher">Researcher</option>
+              </select>
             </div>
-          </div>
 
-          {message && (
-            <div
-              style={{
-                ...styles.feedback,
-                backgroundColor:
-                  messageType === "success" ? "#123524" : "#3b1c22",
-                color: messageType === "success" ? "#bbf7d0" : "#fecaca",
-              }}
-            >
-              {message}
+            <div style={styles.group}>
+              <label>Password</label>
+              <div style={styles.passwordWrap}>
+                <input
+                  type={showPassword ? "text" : "password"}
+                  name="password"
+                  value={formData.password}
+                  onChange={handleChange}
+                  style={styles.input}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((prev) => !prev)}
+                  style={styles.eyeBtn}
+                >
+                  {showPassword ? "Hide" : "Show"}
+                </button>
+              </div>
             </div>
-          )}
 
-          <button type="submit" style={styles.button} disabled={loading}>
-            {loading ? "Creating Account..." : "Create Account"}
-          </button>
-        </form>
+            <div style={styles.group}>
+              <label>Confirm Password</label>
+              <div style={styles.passwordWrap}>
+                <input
+                  type={showConfirmPassword ? "text" : "password"}
+                  name="confirmPassword"
+                  value={formData.confirmPassword}
+                  onChange={handleChange}
+                  style={styles.input}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowConfirmPassword((prev) => !prev)}
+                  style={styles.eyeBtn}
+                >
+                  {showConfirmPassword ? "Hide" : "Show"}
+                </button>
+              </div>
+            </div>
 
-        <p style={styles.linkText}>
-          Already have an account? <Link to="/login">Login here</Link>
-        </p>
+            {message && (
+              <div
+                style={{
+                  ...styles.feedback,
+                  backgroundColor:
+                    messageType === "success" ? "#123524" : "#3b1c22",
+                  color: messageType === "success" ? "#bbf7d0" : "#fecaca",
+                }}
+              >
+                {message}
+              </div>
+            )}
+
+            <button type="submit" style={styles.button} disabled={loading}>
+              {loading ? "Creating Account..." : "Create Account"}
+            </button>
+          </form>
+
+          <p style={styles.linkText}>
+            Already have an account? <Link to="/login">Login here</Link>
+          </p>
+        </div>
       </div>
     </div>
   );
@@ -192,10 +196,13 @@ export default function Register() {
 const styles = {
   page: {
     minHeight: "100vh",
+    background: "linear-gradient(135deg, #0f172a, #111827, #1e293b)",
+  },
+  wrapper: {
+    minHeight: "calc(100vh - 72px)",
     display: "flex",
     justifyContent: "center",
     alignItems: "center",
-    background: "linear-gradient(135deg, #0f172a, #111827, #1e293b)",
     padding: "20px",
   },
   card: {
