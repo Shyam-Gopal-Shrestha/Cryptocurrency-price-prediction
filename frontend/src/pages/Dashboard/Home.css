@@ -1,0 +1,410 @@
+@import url("https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=DM+Sans:wght@300;400;500;600&display=swap");
+
+/* ─── Variables (same as Login) ──────────────────────────── */
+:root {
+  --login-bg: #0c0d10;
+  --login-card-bg: #13151a;
+  --login-card-border: rgba(255, 255, 255, 0.07);
+  --login-accent: #e8c97e;
+  --login-accent-dim: rgba(232, 201, 126, 0.12);
+  --login-text-primary: #f0ede8;
+  --login-text-secondary: #7a7f8e;
+  --login-text-muted: #454954;
+  --login-ring-1: rgba(232, 201, 126, 0.06);
+  --login-ring-2: rgba(232, 201, 126, 0.03);
+  --login-ring-3: rgba(255, 255, 255, 0.015);
+  --font-display: "DM Serif Display", Georgia, serif;
+  --font-body: "DM Sans", system-ui, sans-serif;
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* ─── Root ───────────────────────────────────────────────── */
+.home-root {
+  min-height: 100vh;
+  background-color: var(--login-bg);
+  font-family: var(--font-body);
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ─── Background ─────────────────────────────────────────── */
+.home-bg {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.home-bg__ring {
+  position: absolute;
+  border-radius: 50%;
+  border: 1px solid;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+}
+
+.home-bg__ring--1 {
+  width: 600px;
+  height: 600px;
+  border-color: var(--login-ring-1);
+  animation: ring-pulse 8s ease-in-out infinite;
+}
+
+.home-bg__ring--2 {
+  width: 900px;
+  height: 900px;
+  border-color: var(--login-ring-2);
+  animation: ring-pulse 8s ease-in-out 2s infinite;
+}
+
+.home-bg__ring--3 {
+  width: 1300px;
+  height: 1300px;
+  border-color: var(--login-ring-3);
+  animation: ring-pulse 8s ease-in-out 4s infinite;
+}
+
+@keyframes ring-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.4;
+  }
+}
+
+.home-bg__line {
+  position: absolute;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(232, 201, 126, 0.04),
+    transparent
+  );
+}
+
+.home-bg__line--h {
+  height: 1px;
+  width: 100%;
+  top: 50%;
+}
+
+.home-bg__line--v {
+  width: 1px;
+  height: 100%;
+  left: 50%;
+  background: linear-gradient(
+    180deg,
+    transparent,
+    rgba(232, 201, 126, 0.04),
+    transparent
+  );
+}
+
+/* ─── Topbar ─────────────────────────────────────────────── */
+.topbar {
+  position: relative;
+  z-index: 10;
+  width: 100%;
+  padding: 0 2rem;
+  border-bottom: 1px solid var(--login-card-border);
+  background: rgba(12, 13, 16, 0.8);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+.topbar-inner {
+  max-width: 1100px;
+  margin: 0 auto;
+  height: 64px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+/* ─── Brand ──────────────────────────────────────────────── */
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  text-decoration: none;
+}
+
+.brand-mark {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  border: 1px solid var(--login-accent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--login-accent-dim);
+  flex-shrink: 0;
+}
+
+.brand-mark__inner {
+  display: block;
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+  background: var(--login-accent);
+  transform: rotate(45deg);
+}
+
+.brand-name {
+  font-family: var(--font-display);
+  font-size: 18px;
+  color: var(--login-text-primary);
+  letter-spacing: 0.02em;
+}
+
+.brand-accent {
+  color: var(--login-accent);
+}
+
+/* ─── Nav ────────────────────────────────────────────────── */
+.nav-links {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.nav-link {
+  font-family: var(--font-body);
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--login-text-secondary);
+  text-decoration: none;
+  padding: 6px 14px;
+  border-radius: 8px;
+  transition:
+    color 0.2s,
+    background 0.2s;
+}
+
+.nav-link:hover {
+  color: var(--login-text-primary);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.nav-link--active {
+  color: var(--login-text-primary);
+}
+
+.nav-link--cta {
+  background: var(--login-accent-dim);
+  border: 1px solid rgba(232, 201, 126, 0.2);
+  color: var(--login-accent);
+  font-weight: 500;
+}
+
+.nav-link--cta:hover {
+  background: rgba(232, 201, 126, 0.18);
+  color: var(--login-accent);
+}
+
+/* ─── Hero ───────────────────────────────────────────────── */
+.hero {
+  position: relative;
+  z-index: 1;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 5rem 2rem 4rem;
+}
+
+/* Badge */
+.hero-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 14px;
+  border-radius: 999px;
+  border: 1px solid rgba(232, 201, 126, 0.2);
+  background: var(--login-accent-dim);
+  color: var(--login-accent);
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  margin-bottom: 2rem;
+  animation: card-enter 0.7s var(--ease-out-expo) 0.05s both;
+}
+
+.hero-badge__dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--login-accent);
+  animation: dot-pulse 2s ease-in-out infinite;
+}
+
+@keyframes dot-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.4;
+  }
+}
+
+/* Title */
+.hero-title {
+  font-family: var(--font-display);
+  font-size: clamp(42px, 7vw, 80px);
+  font-weight: 400;
+  color: var(--login-text-primary);
+  line-height: 1.05;
+  letter-spacing: -0.02em;
+  margin-bottom: 1.25rem;
+  animation: card-enter 0.7s var(--ease-out-expo) 0.1s both;
+}
+
+.hero-title--accent {
+  color: var(--login-accent);
+}
+
+/* Subtitle */
+.hero-subtitle {
+  font-size: 16px;
+  font-weight: 300;
+  color: var(--login-text-secondary);
+  max-width: 480px;
+  line-height: 1.7;
+  margin-bottom: 2.5rem;
+  animation: card-enter 0.7s var(--ease-out-expo) 0.15s both;
+}
+
+/* Buttons */
+.hero-buttons {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  justify-content: center;
+  margin-bottom: 3.5rem;
+  animation: card-enter 0.7s var(--ease-out-expo) 0.2s both;
+}
+
+.btn-primary {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 24px;
+  height: 48px;
+  background: var(--login-accent);
+  color: #0c0d10;
+  border: none;
+  border-radius: 10px;
+  font-family: var(--font-body);
+  font-size: 14px;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+  transition:
+    opacity 0.2s,
+    transform 0.15s;
+}
+
+.btn-primary:hover {
+  opacity: 0.88;
+}
+.btn-primary:active {
+  transform: scale(0.98);
+}
+
+.btn-secondary {
+  display: inline-flex;
+  align-items: center;
+  height: 48px;
+  padding: 0 24px;
+  background: transparent;
+  border: 1px solid var(--login-card-border);
+  border-radius: 10px;
+  color: var(--login-text-secondary);
+  font-family: var(--font-body);
+  font-size: 14px;
+  font-weight: 400;
+  text-decoration: none;
+  transition:
+    background 0.2s,
+    border-color 0.2s,
+    color 0.2s;
+}
+
+.btn-secondary:hover {
+  background: rgba(255, 255, 255, 0.04);
+  border-color: rgba(255, 255, 255, 0.14);
+  color: var(--login-text-primary);
+}
+
+/* Stats */
+.hero-stats {
+  display: flex;
+  align-items: center;
+  gap: 2rem;
+  animation: card-enter 0.7s var(--ease-out-expo) 0.25s both;
+}
+
+.hero-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.hero-stat__value {
+  font-family: var(--font-display);
+  font-size: 22px;
+  color: var(--login-text-primary);
+}
+
+.hero-stat__label {
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--login-text-muted);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.hero-stat-divider {
+  width: 1px;
+  height: 32px;
+  background: var(--login-card-border);
+}
+
+/* ─── Animation ──────────────────────────────────────────── */
+@keyframes card-enter {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ─── Responsive ─────────────────────────────────────────── */
+@media (max-width: 600px) {
+  .topbar {
+    padding: 0 1rem;
+  }
+  .hero {
+    padding: 3rem 1.25rem 3rem;
+  }
+  .hero-stats {
+    gap: 1.25rem;
+  }
+  .nav-link {
+    padding: 6px 10px;
+  }
+}
