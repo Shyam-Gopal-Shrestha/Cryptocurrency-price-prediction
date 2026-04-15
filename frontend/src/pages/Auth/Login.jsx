@@ -36,7 +36,10 @@
 //   );
 // }
 
-import { useState } from "react";
+import { useState, useContext } from "react";
+import axios from "axios";
+import { AuthContext } from "../../context/AuthContext";
+import { useNavigate } from "react-router-dom";
 import "./Login.css";
 
 export default function Login() {
@@ -45,6 +48,9 @@ export default function Login() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [touched, setTouched] = useState({ email: false, password: false });
+
+  const { login } = useContext(AuthContext);
+  const navigate = useNavigate();
 
   const handleChange = (e) => {
     setForm((prev) => ({ ...prev, [e.target.name]: e.target.value }));
@@ -65,6 +71,7 @@ export default function Login() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setTouched({ email: true, password: true });
+
     const err = validate();
     if (err) {
       setError(err);
@@ -73,11 +80,26 @@ export default function Login() {
 
     setLoading(true);
     setError("");
-    // Simulate API call
-    await new Promise((r) => setTimeout(r, 1800));
-    setLoading(false);
-    // Replace with real auth logic
-    alert("Login successful!");
+
+    try {
+      // Real API call to your FastAPI backend
+      const res = await axios.post("http://127.0.0.1:8000/login", form);
+
+      // Save user data + token to AuthContext
+      login(res.data);
+
+      // Role-based redirect
+      if (res.data.role === "admin") navigate("/admin");
+      else if (res.data.role === "researcher") navigate("/researcher");
+      else navigate("/user");
+    } catch (err) {
+      setError(
+        err.response?.data?.detail ||
+          "Login failed. Please check your credentials.",
+      );
+    } finally {
+      setLoading(false);
+    }
   };
 
   const emailInvalid = touched.email && !form.email.includes("@");
@@ -86,7 +108,7 @@ export default function Login() {
 
   return (
     <div className="login-root">
-      {/* Geometric background decoration */}
+      {/* Geometric background */}
       <div className="login-bg">
         <div className="login-bg__ring login-bg__ring--1" />
         <div className="login-bg__ring login-bg__ring--2" />
@@ -101,7 +123,9 @@ export default function Login() {
           <div className="login-brand__mark">
             <span className="login-brand__inner" />
           </div>
-          <span className="login-brand__name">Nexus</span>
+          <span className="login-brand__name">
+            Ansush <span style={{ color: "var(--login-accent)" }}>Crypto</span>
+          </span>
         </div>
 
         <div className="login-header">
@@ -343,10 +367,7 @@ export default function Login() {
         </div>
 
         <p className="login-signup">
-          Don't have an account?{" "}
-          <a href="#" onClick={(e) => e.preventDefault()}>
-            Create one free
-          </a>
+          Don't have an account? <a href="/Signup">Create one free</a>
         </p>
       </div>
     </div>
