@@ -1,7 +1,0 @@
-fastapi
-uvicorn
-sqlalchemy
-pymysql
-passlib[bcrypt]
-python-multipart
-email-validator

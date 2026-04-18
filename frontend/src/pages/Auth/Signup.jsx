@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import axios from "axios";
+import api from "../../api/axios";
 import "./signup.css";
 
 export default function Signup() {
@@ -42,8 +42,10 @@ export default function Signup() {
 
     setLoading(true);
     try {
-      await axios.post("http://127.0.0.1:8000/signup", form);
-      setSuccess("Account created! You can now log in.");
+      await api.post("/signup", form);
+      setSuccess(
+        "Registration submitted. Wait for admin approval before login.",
+      );
       setForm({ email: "", password: "", role: "user" });
       setTouched({ email: false, password: false });
     } catch (err) {

@@ -32,7 +32,7 @@ export default function Home() {
             <Link to="/login" className="nav-link">
               Login
             </Link>
-            <Link to="/Signup" className="nav-link nav-link--cta">
+            <Link to="/signup" className="nav-link nav-link--cta">
               Register
             </Link>
           </nav>
@@ -70,7 +70,7 @@ export default function Home() {
               />
             </svg>
           </Link>
-          <Link to="/Signup" className="btn-secondary">
+          <Link to="/signup" className="btn-secondary">
             Create Account
           </Link>
         </div>

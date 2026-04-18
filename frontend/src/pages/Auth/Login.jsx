@@ -37,16 +37,17 @@
 // }
 
 import { useState, useContext } from "react";
-import axios from "axios";
 import { AuthContext } from "../../context/AuthContext";
 import { useNavigate } from "react-router-dom";
+import api from "../../api/axios";
 import "./Login.css";
 
 export default function Login() {
-  const [form, setForm] = useState({ email: "", password: "" });
+  const [form, setForm] = useState({ email: "", password: "", otp_code: "" });
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [requires2FA, setRequires2FA] = useState(false);
   const [touched, setTouched] = useState({ email: false, password: false });
 
   const { login } = useContext(AuthContext);
@@ -82,13 +83,18 @@ export default function Login() {
     setError("");
 
     try {
-      // Real API call to your FastAPI backend
-      const res = await axios.post("http://127.0.0.1:8000/login", form);
+      const res = await api.post("/login", form);
 
-      // Save user data + token to AuthContext
+      if (res.data?.requires_2fa) {
+        setRequires2FA(true);
+        setError(
+          "2FA code required. Enter the 6-digit code from your authenticator app.",
+        );
+        return;
+      }
+
       login(res.data);
 
-      // Role-based redirect
       if (res.data.role === "admin") navigate("/admin");
       else if (res.data.role === "researcher") navigate("/researcher");
       else navigate("/user");
@@ -294,6 +300,27 @@ export default function Login() {
             )}
           </div>
 
+          {requires2FA && (
+            <div className="login-field login-field--valid">
+              <label className="login-label" htmlFor="otp_code">
+                2FA Code
+              </label>
+              <div className="login-input-wrap">
+                <input
+                  id="otp_code"
+                  type="text"
+                  name="otp_code"
+                  className="login-input"
+                  placeholder="6-digit code"
+                  value={form.otp_code}
+                  onChange={handleChange}
+                  maxLength={6}
+                  required
+                />
+              </div>
+            </div>
+          )}
+
           {/* Submit */}
           <button
             type="submit"
@@ -367,7 +394,7 @@ export default function Login() {
         </div>
 
         <p className="login-signup">
-          Don't have an account? <a href="/Signup">Create one free</a>
+          Don't have an account? <a href="/signup">Create one free</a>
         </p>
       </div>
     </div>
