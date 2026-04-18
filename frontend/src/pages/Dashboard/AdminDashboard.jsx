@@ -1,10 +1,13 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useContext, useEffect, useMemo, useState } from "react";
 import api from "../../api/axios";
+import { AuthContext } from "../../context/AuthContext";
+import { LogOut } from "lucide-react";
 import "./DashboardSuite.css";
 
 const roles = ["user", "researcher", "admin"];
 
 export default function AdminDashboard() {
+  const { logout } = useContext(AuthContext);
   const [activeMenu, setActiveMenu] = useState("dashboard");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -189,6 +192,15 @@ export default function AdminDashboard() {
             </button>
           ))}
         </div>
+
+        <button
+          className="dash-menu-btn dash-logout-btn"
+          onClick={logout}
+          type="button"
+        >
+          <LogOut size={15} style={{ marginRight: 6 }} />
+          Sign out
+        </button>
       </aside>
 
       <main className="dash-main">

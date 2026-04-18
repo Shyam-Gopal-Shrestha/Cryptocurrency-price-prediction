@@ -1,5 +1,6 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useContext, useEffect, useMemo, useRef, useState } from "react";
 import axios from "axios";
+import { AuthContext } from "../../context/AuthContext";
 import {
   LayoutDashboard,
   User,
@@ -789,8 +790,10 @@ export default function ResearcherDashboard() {
     setSaveMessage("Settings saved and applied.");
   };
 
+  const { logout } = useContext(AuthContext);
+
   const handleLogout = () => {
-    window.location.href = "/";
+    logout();
   };
 
   const runPrediction = () => {

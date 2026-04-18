@@ -3,6 +3,7 @@ import math
 import os
 import secrets
 import sqlite3
+import hashlib
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -190,20 +191,26 @@ def get_user_by_email(email: str) -> Optional[sqlite3.Row]:
         conn.close()
 
 
+def hash_session_token(token: str) -> str:
+    return hashlib.sha256(token.encode("utf-8")).hexdigest()
+
+
 def get_current_user(authorization: Optional[str] = Header(default=None)) -> sqlite3.Row:
-    token = parse_bearer_token(authorization)
+    raw_token = parse_bearer_token(authorization)
+    token_hash = hash_session_token(raw_token)
     conn = get_connection()
     try:
+        # backward compatible: supports old plaintext tokens already in DB
         row = conn.execute(
             """
             SELECT u.*
             FROM sessions s
             JOIN users u ON u.id = s.user_id
-            WHERE s.token = ?
+            WHERE (s.token = ? OR s.token = ?)
               AND s.is_active = 1
               AND datetime(s.expires_at) > datetime('now')
             """,
-            (token,),
+            (token_hash, raw_token),
         ).fetchone()
     finally:
         conn.close()
@@ -592,17 +599,27 @@ def login(payload: LoginRequest):
         if not totp.verify(payload.otp_code.strip(), valid_window=1):
             raise HTTPException(status_code=401, detail="Invalid 2FA code.")
 
-    token = secrets.token_urlsafe(32)
+    raw_token = secrets.token_urlsafe(48)
+    token_hash = hash_session_token(raw_token)
     expires_at = (datetime.now(timezone.utc) + timedelta(hours=SESSION_HOURS)).isoformat()
 
     conn = get_connection()
     try:
+        # cleanup expired/inactive sessions for this user
+        conn.execute(
+            """
+            UPDATE sessions
+            SET is_active = 0
+            WHERE user_id = ? AND datetime(expires_at) <= datetime('now')
+            """,
+            (user["id"],),
+        )
         conn.execute(
             """
             INSERT INTO sessions (user_id, token, expires_at, created_at, is_active)
             VALUES (?, ?, ?, ?, 1)
             """,
-            (user["id"], token, expires_at, now_utc()),
+            (user["id"], token_hash, expires_at, now_utc()),
         )
         conn.commit()
     finally:
@@ -614,7 +631,7 @@ def login(payload: LoginRequest):
         "email": user["email"],
         "role": user["role"],
         "status": user["status"],
-        "token": token,
+        "token": raw_token,
         "expires_at": expires_at,
     }
 
@@ -624,16 +641,32 @@ def logout(
     current_user: sqlite3.Row = Depends(get_current_user),
     authorization: Optional[str] = Header(default=None),
 ):
-    token = parse_bearer_token(authorization)
+    raw_token = parse_bearer_token(authorization)
+    token_hash = hash_session_token(raw_token)
     conn = get_connection()
     try:
-        conn.execute("UPDATE sessions SET is_active = 0 WHERE token = ?", (token,))
+        conn.execute(
+            "UPDATE sessions SET is_active = 0 WHERE token = ? OR token = ?",
+            (token_hash, raw_token),  # backward compatibility
+        )
         conn.commit()
     finally:
         conn.close()
 
     track_activity(current_user["id"], "user.logout", "User logged out.")
     return {"message": "Logged out successfully."}
+
+@router.post("/auth/logout-all")
+def logout_all_sessions(current_user: sqlite3.Row = Depends(get_current_user)):
+    conn = get_connection()
+    try:
+        conn.execute("UPDATE sessions SET is_active = 0 WHERE user_id = ?", (current_user["id"],))
+        conn.commit()
+    finally:
+        conn.close()
+
+    track_activity(current_user["id"], "user.logout_all", "All sessions revoked.")
+    return {"message": "All sessions logged out."}
 
 
 @router.get("/auth/me")

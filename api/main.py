@@ -4,7 +4,7 @@ import os
 import json
 from urllib.request import Request, urlopen
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from fastapi import FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from src.model import predict_price  # use the modular model
@@ -14,7 +14,7 @@ from src.models.random_forest import train_random_forest, evaluate_random_forest
 from src.models.xgboost import train_xgboost, evaluate_xgboost
 from src.models.svr import train_svr, evaluate_svr
 from src.models.lstm import train_lstm, evaluate_lstm
-from api.auth import router as auth_router
+from api.auth import require_role, router as auth_router
 import pandas as pd
 import numpy as np
 import threading
@@ -100,7 +100,10 @@ def home():
 
 
 @app.get("/api/coin-news")
-def get_coin_news(coin: str = "Bitcoin"):
+def get_coin_news(
+    coin: str = "Bitcoin",
+    current_user=Depends(require_role("user", "researcher", "admin")),
+):
     """Return lightweight curated news links for the requested coin."""
     normalized = (coin or "Bitcoin").strip().lower()
     if normalized in NEWS_FALLBACK:
@@ -114,7 +117,11 @@ def _symbol_to_coin_id(symbol: str) -> str:
 
 
 @app.get("/api/live-market")
-def get_live_market(symbol: str = "BTC-USD", days: int = 1):
+def get_live_market(
+    symbol: str = "BTC-USD",
+    days: int = 1,
+    current_user=Depends(require_role("user", "researcher", "admin")),
+):
     """Proxy live market data with CoinGecko primary and yfinance fallback."""
     days = max(1, min(int(days), 30))
     coin_id = _symbol_to_coin_id(symbol)
@@ -211,7 +218,10 @@ def get_live_market(symbol: str = "BTC-USD", days: int = 1):
         )
 
 @app.post("/predict")
-def predict(data: InputData):
+def predict(
+    data: InputData,
+    current_user=Depends(require_role("user", "researcher", "admin")),
+):
     """
     Predict Close price for any crypto using selected model.
     """
@@ -292,7 +302,11 @@ def predict(data: InputData):
         return {"error": f"Unexpected error: {str(e)}"}
 
 @app.get("/historical")
-def get_historical(symbol: str, date: str = None):
+def get_historical(
+    symbol: str,
+    date: str = None,
+    current_user=Depends(require_role("user", "researcher", "admin")),
+):
     """Fetch historical rows by symbol, or a specific row if date is provided."""
 
     # Historical files are named using dash punctuation (e.g. BTC-USD_historical.csv)
@@ -356,12 +370,12 @@ def get_historical(symbol: str, date: str = None):
 training_status = {"is_running": False, "progress": "", "results": None}
 
 @app.get("/train/status")
-def get_training_status():
+def get_training_status(current_user=Depends(require_role("researcher", "admin"))):
     """Get current training status."""
     return training_status
 
 @app.post("/train/models")
-def train_models_endpoint():
+def train_models_endpoint(current_user=Depends(require_role("researcher", "admin"))):
     """
     Train all models (Linear Regression, Random Forest, XGBoost, SVR, LSTM).
     Returns immediately; check /train/status for progress.
@@ -435,7 +449,7 @@ def train_models_endpoint():
     return {"status": "started", "message": "Model training started. Check /train/status for progress."}
 
 @app.get("/models/comparison")
-def get_model_comparison():
+def get_model_comparison(current_user=Depends(require_role("user", "researcher", "admin"))):
     """Get the latest model comparison results."""
     if training_status["results"] is None:
         return {"message": "No training results yet. Run /train/models first."}

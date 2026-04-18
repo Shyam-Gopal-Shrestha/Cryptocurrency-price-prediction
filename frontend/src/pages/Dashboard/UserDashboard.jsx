@@ -1,6 +1,8 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useContext, useEffect, useMemo, useState } from "react";
 import api from "../../api/axios";
+import { AuthContext } from "../../context/AuthContext";
 import { Line } from "react-chartjs-2";
+import { LogOut } from "lucide-react";
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -23,6 +25,7 @@ ChartJS.register(
 );
 
 export default function UserDashboard() {
+  const { logout } = useContext(AuthContext);
   const [activeMenu, setActiveMenu] = useState("dashboard");
   const [config, setConfig] = useState({
     cryptocurrencies: [],
@@ -307,6 +310,15 @@ export default function UserDashboard() {
             </button>
           ))}
         </div>
+
+        <button
+          className="dash-menu-btn dash-logout-btn"
+          onClick={logout}
+          type="button"
+        >
+          <LogOut size={15} style={{ marginRight: 6 }} />
+          Sign out
+        </button>
       </aside>
 
       <main className="dash-main">

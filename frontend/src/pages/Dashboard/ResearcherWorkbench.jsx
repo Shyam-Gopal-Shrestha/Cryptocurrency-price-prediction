@@ -10,6 +10,7 @@ import {
 } from "chart.js";
 import { Bar } from "react-chartjs-2";
 import "./DashboardSuite.css";
+import { LogOut } from "lucide-react";
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, Tooltip, Legend);
 
@@ -220,28 +221,42 @@ export default function ResearcherWorkbench() {
     }
   };
 
+  const logout = () => {
+    localStorage.removeItem("researcher-token");
+    window.location.href = "/";
+  };
+
   return (
     <div className="dash-layout">
       <aside className="dash-sidebar">
         <div>
           <div className="dash-brand">
             <span className="dash-brand-dot" />
-            <h2>Researcher Lab</h2>
+            <h2>Researcher</h2>
           </div>
-          <p className="dash-subtitle">Model R&D and deployment controls</p>
+          <p className="dash-subtitle">Model training & analysis</p>
+
+          <div className="dash-menu">
+            {menuItems.map((item) => (
+              <button
+                key={item.key}
+                className={`dash-menu-btn ${activeMenu === item.key ? "active" : ""}`}
+                onClick={() => setActiveMenu(item.key)}
+              >
+                {item.label}
+              </button>
+            ))}
+          </div>
         </div>
 
-        <div className="dash-menu">
-          {menuItems.map((item) => (
-            <button
-              key={item.key}
-              className={`dash-menu-btn ${activeMenu === item.key ? "active" : ""}`}
-              onClick={() => setActiveMenu(item.key)}
-            >
-              {item.label}
-            </button>
-          ))}
-        </div>
+        <button
+          className="dash-menu-btn dash-logout-btn"
+          onClick={logout}
+          type="button"
+        >
+          <LogOut size={15} style={{ marginRight: 6 }} />
+          Sign out
+        </button>
       </aside>
 
       <main className="dash-main">

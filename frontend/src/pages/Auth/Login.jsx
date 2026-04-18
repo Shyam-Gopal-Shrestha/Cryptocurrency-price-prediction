@@ -39,7 +39,6 @@
 import { useState, useContext } from "react";
 import { AuthContext } from "../../context/AuthContext";
 import { useNavigate } from "react-router-dom";
-import api from "../../api/axios";
 import "./Login.css";
 
 export default function Login() {
@@ -83,9 +82,9 @@ export default function Login() {
     setError("");
 
     try {
-      const res = await api.post("/login", form);
+      const result = await login(form);
 
-      if (res.data?.requires_2fa) {
+      if (result?.requires_2fa) {
         setRequires2FA(true);
         setError(
           "2FA code required. Enter the 6-digit code from your authenticator app.",
@@ -93,10 +92,8 @@ export default function Login() {
         return;
       }
 
-      login(res.data);
-
-      if (res.data.role === "admin") navigate("/admin");
-      else if (res.data.role === "researcher") navigate("/researcher");
+      if (result.role === "admin") navigate("/admin");
+      else if (result.role === "researcher") navigate("/researcher");
       else navigate("/user");
     } catch (err) {
       setError(
