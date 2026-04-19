@@ -7,6 +7,7 @@ import hashlib
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
+from dotenv import load_dotenv
 
 import joblib
 import numpy as np
@@ -33,6 +34,9 @@ ALLOWED_ROLES = {"user", "researcher", "admin"}
 ALLOWED_REQUEST_ROLES = {"user", "researcher"}
 SESSION_HOURS = 24
 MODEL_STORAGE_DIR = Path(os.path.dirname(__file__)).parent / "models" / "deployed"
+BASE_DIR = Path(__file__).resolve().parent.parent
+
+load_dotenv(BASE_DIR / ".env", override=False)
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
@@ -193,6 +197,16 @@ def get_user_by_email(email: str) -> Optional[sqlite3.Row]:
 
 def hash_session_token(token: str) -> str:
     return hashlib.sha256(token.encode("utf-8")).hexdigest()
+
+
+def get_gemini_api_key() -> Optional[str]:
+    key = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
+    if not key:
+        return None
+    key = key.strip().strip('"').strip("'")
+    if key.lower() in {"none", "null", "changeme", "your_key_here"}:
+        return None
+    return key
 
 
 def get_current_user(authorization: Optional[str] = Header(default=None)) -> sqlite3.Row:
@@ -525,7 +539,7 @@ def generate_explanation(
         )
     )
 
-    api_key = os.getenv("GEMINI_API_KEY")
+    api_key = get_gemini_api_key()
     if not api_key:
         return fallback, "local_explainer"
 
@@ -533,17 +547,28 @@ def generate_explanation(
         import google.generativeai as genai
 
         genai.configure(api_key=api_key)
-        model = genai.GenerativeModel("gemini-1.5-flash")
         prompt = (
             f"You are a crypto assistant. Provide a {mode} explanation for a price prediction. "
             f"Symbol: {symbol}, horizon: {horizon} day(s), trend: {trend}, "
             f"predicted price: {predicted_price:.2f}, last close: {last_close:.2f}, "
             f"confidence: {confidence:.2f}%. Keep it concise and responsible."
         )
-        response = model.generate_content(prompt)
-        text = (response.text or "").strip()
-        if text:
-            return text, "gemini"
+        candidate_models = [
+            "gemini-2.5-flash",
+            "gemini-2.0-flash",
+            "gemini-flash-latest",
+            "gemini-pro-latest",
+        ]
+
+        for model_name in candidate_models:
+            try:
+                model = genai.GenerativeModel(model_name)
+                response = model.generate_content(prompt)
+                text = (response.text or "").strip()
+                if text:
+                    return text, "gemini"
+            except Exception:
+                continue
     except Exception:
         pass
 

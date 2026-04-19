@@ -1,5 +1,6 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useContext, useEffect, useMemo, useState } from "react";
 import api from "../../api/axios";
+import { AuthContext } from "../../context/AuthContext";
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -15,6 +16,7 @@ import { LogOut } from "lucide-react";
 ChartJS.register(CategoryScale, LinearScale, BarElement, Tooltip, Legend);
 
 export default function ResearcherWorkbench() {
+  const { logout } = useContext(AuthContext);
   const [activeMenu, setActiveMenu] = useState("dashboard");
   const [config, setConfig] = useState({ cryptocurrencies: [], models: [] });
   const [experiments, setExperiments] = useState([]);
@@ -219,11 +221,6 @@ export default function ResearcherWorkbench() {
     } catch (err) {
       setError(err.response?.data?.detail || "Deploy failed.");
     }
-  };
-
-  const logout = () => {
-    localStorage.removeItem("researcher-token");
-    window.location.href = "/";
   };
 
   return (

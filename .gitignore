@@ -1,0 +1,53 @@
+# macOS
+.DS_Store
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+.python-version
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+coverage.xml
+htmlcov/
+.env
+.venv/
+venv/
+env/
+*.egg-info/
+dist/
+build/
+
+# FastAPI / local app data
+api/auth.db
+api/*.db
+models/
+*.log
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Node / React frontend
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+frontend/.cache/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# IDEs
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+.idea/
+
+# OS temp
+*.swp
+*.swo
+*~
