@@ -12,6 +12,7 @@ import {
 import { Bar } from "react-chartjs-2";
 import "./DashboardSuite.css";
 import { LogOut } from "lucide-react";
+import { Line } from "react-chartjs-2";
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, Tooltip, Legend);
 
@@ -222,6 +223,55 @@ export default function ResearcherWorkbench() {
       setError(err.response?.data?.detail || "Deploy failed.");
     }
   };
+
+  const [pvActual, setPvActual] = useState(null);
+  const [pvModel, setPvModel] = useState("random_forest");
+  const [pvSymbol, setPvSymbol] = useState("BTC-USD");
+  const [pvLoading, setPvLoading] = useState(false);
+  const [pvError, setPvError] = useState("");
+
+  const loadPredictionVsActual = async () => {
+    setPvLoading(true);
+    setPvError("");
+    try {
+      const res = await api.get("/prediction-vs-actual", {
+        params: {
+          symbol: pvSymbol,
+          model: pvModel,
+          limit: 60,
+        },
+      });
+      setPvActual(res.data);
+    } catch (err) {
+      setPvActual(null);
+      setPvError(
+        err.response?.data?.detail ||
+          "Failed to load prediction vs actual data.",
+      );
+    } finally {
+      setPvLoading(false);
+    }
+  };
+
+  const pvChartData = pvActual
+    ? {
+        labels: pvActual.points.map((p) => p.date),
+        datasets: [
+          {
+            label: "Actual",
+            data: pvActual.points.map((p) => p.actual),
+            borderColor: "#2563eb",
+            tension: 0.25,
+          },
+          {
+            label: "Predicted",
+            data: pvActual.points.map((p) => p.predicted),
+            borderColor: "#f59e0b",
+            tension: 0.25,
+          },
+        ],
+      }
+    : null;
 
   return (
     <div className="dash-layout">
@@ -663,6 +713,59 @@ export default function ResearcherWorkbench() {
             </div>
           </section>
         )}
+
+        <section className="dash-card">
+          <h3>Prediction vs Actual</h3>
+
+          <div className="dash-grid-2">
+            <div>
+              <label>Symbol</label>
+              <select
+                value={pvSymbol}
+                onChange={(e) => setPvSymbol(e.target.value)}
+              >
+                <option value="BTC-USD">BTC-USD</option>
+                <option value="ETH-USD">ETH-USD</option>
+                <option value="SOL-USD">SOL-USD</option>
+              </select>
+            </div>
+
+            <div>
+              <label>Model</label>
+              <select
+                value={pvModel}
+                onChange={(e) => setPvModel(e.target.value)}
+              >
+                <option value="linear_regression">Linear Regression</option>
+                <option value="random_forest">Random Forest</option>
+                <option value="xgboost">XGBoost</option>
+                <option value="svr">SVR</option>
+                <option value="lstm">LSTM</option>
+              </select>
+            </div>
+          </div>
+
+          <button className="dash-btn primary" onClick={loadPredictionVsActual}>
+            Load Comparison
+          </button>
+
+          {pvError && <div className="dash-alert error">{pvError}</div>}
+
+          {pvActual && pvChartData && (
+            <>
+              <p className="dash-subtitle">
+                MAE: {pvActual.metrics.mae.toFixed(2)} · RMSE:{" "}
+                {pvActual.metrics.rmse.toFixed(2)}
+              </p>
+              <div style={{ height: 340 }}>
+                <Line
+                  data={pvChartData}
+                  options={{ responsive: true, maintainAspectRatio: false }}
+                />
+              </div>
+            </>
+          )}
+        </section>
       </main>
     </div>
   );

@@ -11,6 +11,7 @@ import {
   LineElement,
   Tooltip,
   Legend,
+  Filler, // add
 } from "chart.js";
 import QRCode from "qrcode";
 import "./DashboardSuite.css";
@@ -22,6 +23,7 @@ ChartJS.register(
   LineElement,
   Tooltip,
   Legend,
+  Filler, // add
 );
 
 export default function UserDashboard() {
@@ -287,6 +289,62 @@ export default function UserDashboard() {
       mounted = false;
     };
   }, [twoFASetup?.otpauth_uri, twoFASetup?.otpauth_url]);
+
+  const [comparison, setComparison] = useState(null);
+  const [comparisonLoading, setComparisonLoading] = useState(false);
+  const [comparisonError, setComparisonError] = useState("");
+
+  const loadComparison = async (symbol) => {
+    setComparisonLoading(true);
+    setComparisonError("");
+    try {
+      const res = await api.get("/prediction-vs-actual", {
+        params: {
+          symbol,
+          model: "random_forest",
+          limit: 30,
+        },
+      });
+      setComparison(res.data);
+    } catch (err) {
+      setComparison(null);
+      setComparisonError(
+        err.response?.data?.detail ||
+          "Failed to load prediction vs actual data.",
+      );
+    } finally {
+      setComparisonLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (form?.symbol) {
+      loadComparison(form.symbol);
+    }
+  }, [form.symbol]);
+
+  const comparisonChartData = useMemo(() => {
+    if (!comparison?.points?.length) return null;
+    return {
+      labels: comparison.points.map((p) => p.date),
+      datasets: [
+        {
+          label: "Actual Price",
+          data: comparison.points.map((p) => p.actual),
+          borderColor: "#2563eb",
+          backgroundColor: "rgba(37,99,235,0.15)",
+          tension: 0.3,
+        },
+        {
+          label: "Predicted Price",
+          data: comparison.points.map((p) => p.predicted),
+          borderColor: "#16a34a",
+          backgroundColor: "rgba(22,163,74,0.15)",
+          tension: 0.3,
+        },
+      ],
+    };
+  }, [comparison]);
 
   return (
     <div className="dash-layout">

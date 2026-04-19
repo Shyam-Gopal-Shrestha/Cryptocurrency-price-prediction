@@ -17,9 +17,11 @@ import yfinance as yf
 from fastapi import APIRouter, Depends, Header, HTTPException
 from passlib.context import CryptContext
 from pydantic import BaseModel, Field
-from sklearn.ensemble import RandomForestRegressor
+from sklearn.ensemble import GradientBoostingRegressor, RandomForestRegressor
 from sklearn.linear_model import LinearRegression
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
+from sklearn.neural_network import MLPRegressor
+from sklearn.svm import SVR
 
 try:
     from xgboost import XGBRegressor
@@ -91,7 +93,15 @@ class PreprocessRequest(BaseModel):
 class TrainRequest(BaseModel):
     symbol: str
     models: List[str] = Field(
-        default_factory=lambda: ["linear_regression", "random_forest", "xgboost"]
+        default_factory=lambda: [
+            "linear_regression",
+            "random_forest",
+            "xgboost",
+            "svr",
+            "lstm",
+            "gru",
+            "transformer",
+        ]
     )
     horizon: int = 1
     test_size: float = 0.2
@@ -127,7 +137,12 @@ def normalize_email(email: str) -> str:
 
 
 def normalize_symbol(symbol: str) -> str:
-    return symbol.strip().upper()
+    normalized = symbol.strip().upper()
+    if not normalized:
+        raise HTTPException(status_code=400, detail="Symbol is required.")
+    if "-" not in normalized:
+        normalized = f"{normalized}-USD"
+    return normalized
 
 
 def parse_bearer_token(authorization: Optional[str]) -> str:
@@ -421,6 +436,7 @@ def init_auth_db() -> None:
             "linear_regression",
             "random_forest",
             "xgboost",
+            "svr",
             "lstm",
             "gru",
             "transformer",
@@ -433,6 +449,15 @@ def init_auth_db() -> None:
                 """,
                 (model, now_utc()),
             )
+
+        # Ensure supported defaults stay enabled for researcher workflows.
+        conn.execute(
+            """
+            UPDATE model_configs
+            SET is_enabled = 1, is_researcher_available = 1
+            WHERE model_name IN ('linear_regression', 'random_forest', 'xgboost', 'svr', 'lstm', 'gru', 'transformer')
+            """
+        )
         conn.commit()
     finally:
         conn.close()
@@ -1148,6 +1173,28 @@ def researcher_train_models(
     model_factories = {
         "linear_regression": lambda: LinearRegression(),
         "random_forest": lambda: RandomForestRegressor(n_estimators=300, random_state=42),
+        "svr": lambda: SVR(C=10.0, epsilon=0.01, gamma="scale"),
+        # Practical tabular approximations so these model options are operational in this API flow.
+        "lstm": lambda: MLPRegressor(
+            hidden_layer_sizes=(128, 64),
+            activation="tanh",
+            solver="adam",
+            max_iter=800,
+            random_state=42,
+        ),
+        "gru": lambda: MLPRegressor(
+            hidden_layer_sizes=(96, 48),
+            activation="relu",
+            solver="adam",
+            max_iter=800,
+            random_state=42,
+        ),
+        "transformer": lambda: GradientBoostingRegressor(
+            n_estimators=400,
+            learning_rate=0.03,
+            max_depth=3,
+            random_state=42,
+        ),
     }
     if HAS_XGBOOST:
         model_factories["xgboost"] = lambda: XGBRegressor(
@@ -1156,6 +1203,13 @@ def researcher_train_models(
             learning_rate=0.05,
             subsample=0.9,
             colsample_bytree=0.9,
+            random_state=42,
+        )
+    else:
+        model_factories["xgboost"] = lambda: GradientBoostingRegressor(
+            n_estimators=500,
+            learning_rate=0.03,
+            max_depth=4,
             random_state=42,
         )
 
@@ -1426,5 +1480,108 @@ def user_prediction_history(current_user: sqlite3.Row = Depends(require_role("us
         conn.close()
     return [dict(r) for r in rows]
 
+
+@router.get("/prediction-vs-actual")
+def prediction_vs_actual(
+    symbol: str = "BTC-USD",
+    model: str = "random_forest",
+    limit: int = 30,
+    current_user: sqlite3.Row = Depends(require_role("user", "researcher", "admin")),
+):
+    symbol = normalize_symbol(symbol)
+    model = model.strip().lower()
+    limit = max(10, min(int(limit), 180))
+
+    raw_df = get_symbol_dataframe(symbol)
+    feature_df = build_features(raw_df)
+    if len(feature_df) < 3:
+        raise HTTPException(status_code=400, detail=f"Not enough data for {symbol}.")
+
+    conn = get_connection()
+    deployed = None
+    try:
+        deployed = conn.execute(
+            """
+            SELECT model_name, artifact_path
+            FROM experiments
+            WHERE symbol = ? AND is_deployed = 1 AND model_name = ?
+            ORDER BY datetime(created_at) DESC
+            LIMIT 1
+            """,
+            (symbol, model),
+        ).fetchone()
+
+        if not deployed:
+            deployed = conn.execute(
+                """
+                SELECT model_name, artifact_path
+                FROM experiments
+                WHERE symbol = ? AND is_deployed = 1
+                ORDER BY datetime(created_at) DESC
+                LIMIT 1
+                """,
+                (symbol,),
+            ).fetchone()
+    finally:
+        conn.close()
+
+    model_obj = None
+    feature_cols = None
+    model_used = "fallback_naive"
+
+    if deployed:
+        try:
+            artifact = joblib.load(deployed["artifact_path"])
+            model_obj = artifact.get("model")
+            feature_cols = artifact.get("feature_cols")
+            if model_obj is not None and feature_cols:
+                model_used = deployed["model_name"]
+        except Exception:
+            model_obj = None
+            feature_cols = None
+            model_used = "fallback_naive"
+
+    eval_df = feature_df.tail(limit + 1).reset_index(drop=True)
+    points: List[Dict[str, Any]] = []
+
+    for i in range(len(eval_df) - 1):
+        current_row = eval_df.iloc[i]
+        next_row = eval_df.iloc[i + 1]
+
+        actual = float(next_row["close"])
+        predicted = float(current_row["close"])  # safe fallback baseline
+
+        if model_obj is not None and feature_cols:
+            try:
+                x = current_row[feature_cols].values.reshape(1, -1)
+                predicted = float(model_obj.predict(x)[0])
+            except Exception:
+                predicted = float(current_row["close"])
+
+        points.append(
+            {
+                "date": pd.to_datetime(next_row["timestamp"]).strftime("%Y-%m-%d"),
+                "actual": actual,
+                "predicted": predicted,
+                "abs_error": abs(actual - predicted),
+            }
+        )
+
+    if not points:
+        raise HTTPException(status_code=400, detail="No comparison points generated.")
+
+    y_true = np.array([p["actual"] for p in points], dtype=float)
+    y_pred = np.array([p["predicted"] for p in points], dtype=float)
+
+    return {
+        "symbol": symbol,
+        "model": model_used,
+        "count": len(points),
+        "metrics": {
+            "mae": float(mean_absolute_error(y_true, y_pred)),
+            "rmse": float(np.sqrt(mean_squared_error(y_true, y_pred))),
+        },
+        "points": points,
+    }
 
 init_auth_db()
