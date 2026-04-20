@@ -26,6 +26,142 @@ ChartJS.register(
   Filler, // add
 );
 
+// Parse basic markdown (**bold**) into React elements
+function parseBold(text) {
+  const parts = text.split(/(\*\*[^*]+\*\*)/g);
+  return parts.map((p, i) =>
+    p.startsWith("**") && p.endsWith("**") ? (
+      <strong key={i}>{p.slice(2, -2)}</strong>
+    ) : (
+      p
+    ),
+  );
+}
+
+// Render Gemini explanation text in a structured, readable way
+function renderExplanation(text) {
+  if (!text) return null;
+
+  // Normalise: insert a real newline before every numbered point (handles
+  // cases where Gemini returns "...text 1. **..." all on one line)
+  const normalised = text
+    .replace(/\s+(\d+\.\s\*\*)/g, "\n$1")
+    .replace(/\s+(\d+\.\s[A-Z])/g, "\n$1");
+
+  const rawBlocks = normalised
+    .split(/\n+/)
+    .map((b) => b.trim())
+    .filter(Boolean);
+
+  const isDisclaimer = (s) =>
+    /responsibility|financial advice|past performance|volatile|not indicative/i.test(
+      s,
+    );
+
+  const isNumbered = (s) => /^\d+\.\s/.test(s);
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+      {rawBlocks.map((block, idx) => {
+        if (isDisclaimer(block)) {
+          return (
+            <div
+              key={idx}
+              style={{
+                marginTop: 4,
+                padding: "10px 14px",
+                borderRadius: 8,
+                background: "#fff8e1",
+                borderLeft: "3px solid #f59e0b",
+                fontSize: 13,
+                color: "#92400e",
+                lineHeight: 1.7,
+              }}
+            >
+              ⚠️ {parseBold(block)}
+            </div>
+          );
+        }
+
+        if (isNumbered(block)) {
+          // Match "1. **Title:** body" OR "1. Title: body"
+          const match =
+            block.match(/^(\d+)\.\s\*\*([^*:]+)[:\*]*\*\*\s*(.*)$/) ||
+            block.match(/^(\d+)\.\s([^:]+):\s*(.*)$/);
+          if (match) {
+            const [, num, title, body] = match;
+            return (
+              <div
+                key={idx}
+                style={{
+                  padding: "10px 14px",
+                  borderRadius: 8,
+                  background: "#f0f1ff",
+                  borderLeft: "3px solid #6366f1",
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: 4,
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <span
+                    style={{
+                      background: "#6366f1",
+                      color: "#fff",
+                      borderRadius: "50%",
+                      width: 22,
+                      height: 22,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      fontSize: 12,
+                      fontWeight: 700,
+                      flexShrink: 0,
+                    }}
+                  >
+                    {num}
+                  </span>
+                  <strong style={{ fontSize: 13, color: "#1e1b4b" }}>
+                    {title.trim()}
+                  </strong>
+                </div>
+                {body && (
+                  <p
+                    style={{
+                      margin: 0,
+                      paddingLeft: 30,
+                      fontSize: 13,
+                      lineHeight: 1.7,
+                      color: "#1e293b",
+                    }}
+                  >
+                    {parseBold(body)}
+                  </p>
+                )}
+              </div>
+            );
+          }
+        }
+
+        // Plain paragraph (intro sentence etc.)
+        return (
+          <p
+            key={idx}
+            style={{
+              margin: 0,
+              fontSize: 13,
+              lineHeight: 1.8,
+              color: "#1e293b",
+            }}
+          >
+            {parseBold(block)}
+          </p>
+        );
+      })}
+    </div>
+  );
+}
+
 export default function UserDashboard() {
   const { logout } = useContext(AuthContext);
   const [activeMenu, setActiveMenu] = useState("dashboard");
@@ -504,8 +640,37 @@ export default function UserDashboard() {
               </div>
 
               <div className="dash-card">
-                <h3>Explanation Card (Gemini/Internal)</h3>
-                <p style={{ lineHeight: 1.6 }}>{prediction.explanation}</p>
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 8,
+                    marginBottom: 14,
+                  }}
+                >
+                  <span style={{ fontSize: 18 }}>🤖</span>
+                  <div>
+                    <h3 style={{ margin: 0 }}>AI Explanation</h3>
+                    <span
+                      style={{
+                        fontSize: 11,
+                        color: "#6366f1",
+                        fontWeight: 600,
+                        textTransform: "uppercase",
+                        letterSpacing: 1,
+                      }}
+                    >
+                      {prediction.explanation_mode === "technical"
+                        ? "Technical Analysis"
+                        : "Simple Summary"}
+                      {" · "}
+                      {prediction.model
+                        ? prediction.model.replace(/_/g, " ")
+                        : "AI"}
+                    </span>
+                  </div>
+                </div>
+                {renderExplanation(prediction.explanation)}
               </div>
             </section>
           )}
