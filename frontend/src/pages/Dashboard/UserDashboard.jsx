@@ -163,6 +163,12 @@ function renderExplanation(text) {
 }
 
 export default function UserDashboard() {
+  const sentimentColor = (label) => {
+    if (label === "positive") return "#16a34a";
+    if (label === "negative") return "#dc2626";
+    return "#334155";
+  };
+
   const { logout } = useContext(AuthContext);
   const [activeMenu, setActiveMenu] = useState("dashboard");
   const [config, setConfig] = useState({
@@ -192,6 +198,11 @@ export default function UserDashboard() {
   const [liveRange, setLiveRange] = useState("1");
   const [liveSource, setLiveSource] = useState("proxy");
 
+  const [sentimentData, setSentimentData] = useState(null);
+  const [sentimentLoading, setSentimentLoading] = useState(false);
+  const [sentimentError, setSentimentError] = useState("");
+  const [sentimentRefreshedAt, setSentimentRefreshedAt] = useState(null);
+
   const [twoFASetup, setTwoFASetup] = useState(null); // expected: { secret, otpauth_uri }
   const [qrDataUrl, setQrDataUrl] = useState("");
 
@@ -199,6 +210,7 @@ export default function UserDashboard() {
     { key: "dashboard", label: "Dashboard" },
     { key: "predict", label: "Predict Price" },
     { key: "live", label: "Live Chart" },
+    { key: "sentiment", label: "Sentiment" },
     { key: "history", label: "History" },
     { key: "profile", label: "Profile" },
     { key: "security", label: "Security" },
@@ -248,6 +260,28 @@ export default function UserDashboard() {
     if (!prediction) return "#334155";
     return prediction.trend === "bullish" ? "#16a34a" : "#dc2626";
   }, [prediction]);
+
+  const riskColor = useMemo(() => {
+    if (!prediction?.risk_level) return "#334155";
+    if (prediction.risk_level === "low") return "#16a34a";
+    if (prediction.risk_level === "medium") return "#d97706";
+    return "#dc2626";
+  }, [prediction]);
+
+  const selectedCryptoMeta = useMemo(() => {
+    const found = (config.cryptocurrencies || []).find(
+      (c) => c.symbol === form.symbol,
+    );
+    return {
+      symbol: form.symbol || sentimentData?.symbol || "BTC-USD",
+      name: found?.name || sentimentData?.coin_id || "Selected Crypto",
+    };
+  }, [
+    config.cryptocurrencies,
+    form.symbol,
+    sentimentData?.coin_id,
+    sentimentData?.symbol,
+  ]);
 
   const historyChartData = useMemo(() => {
     const points = [...history].reverse().slice(-20);
@@ -320,6 +354,28 @@ export default function UserDashboard() {
     }
   };
 
+  const fetchSentiment = async () => {
+    setSentimentLoading(true);
+    setSentimentError("");
+    try {
+      const res = await api.get("/api/sentiment", {
+        params: {
+          symbol: form.symbol,
+          limit: 10,
+        },
+      });
+      setSentimentData(res.data || null);
+      setSentimentRefreshedAt(new Date());
+    } catch (err) {
+      setSentimentData(null);
+      setSentimentError(
+        err.response?.data?.detail || "Failed to load sentiment data.",
+      );
+    } finally {
+      setSentimentLoading(false);
+    }
+  };
+
   useEffect(() => {
     if (activeMenu !== "dashboard" && activeMenu !== "live") return;
 
@@ -327,6 +383,11 @@ export default function UserDashboard() {
     const intervalId = setInterval(fetchLiveChart, 60000);
     return () => clearInterval(intervalId);
   }, [activeMenu, form.symbol, liveRange]);
+
+  useEffect(() => {
+    if (activeMenu !== "dashboard" && activeMenu !== "sentiment") return;
+    fetchSentiment();
+  }, [activeMenu, form.symbol]);
 
   const submitPrediction = async (e) => {
     e.preventDefault();
@@ -338,6 +399,7 @@ export default function UserDashboard() {
         symbol: form.symbol,
         horizon: Number(form.horizon),
         explanation_mode: form.explanation_mode,
+        risk_tolerance: form.risk_tolerance,
       });
       setPrediction(res.data);
       setSuccess("Prediction generated successfully.");
@@ -637,6 +699,16 @@ export default function UserDashboard() {
                   <strong>Last Close:</strong> $
                   {Number(prediction.last_close || 0).toFixed(2)}
                 </p>
+                <p>
+                  <strong>Risk Level:</strong>{" "}
+                  <span style={{ color: riskColor, fontWeight: 700 }}>
+                    {(prediction.risk_level || "medium").toUpperCase()}
+                  </span>{" "}
+                  ({Number(prediction.risk_score || 0).toFixed(1)}/100)
+                </p>
+                <p>
+                  <strong>Risk Note:</strong> {prediction.risk_note || "-"}
+                </p>
               </div>
 
               <div className="dash-card">
@@ -734,6 +806,244 @@ export default function UserDashboard() {
               </div>
             ) : (
               <p>No live data points available.</p>
+            )}
+          </section>
+        )}
+
+        {(activeMenu === "dashboard" || activeMenu === "sentiment") && (
+          <section className="dash-card" style={{ marginBottom: 12 }}>
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                marginBottom: 10,
+              }}
+            >
+              <div>
+                <h3 style={{ margin: 0 }}>News + Twitter Sentiment</h3>
+                <p className="dash-stat-label" style={{ margin: "2px 0 0" }}>
+                  Last refreshed:{" "}
+                  {sentimentRefreshedAt
+                    ? sentimentRefreshedAt.toLocaleTimeString()
+                    : "Not yet"}
+                </p>
+              </div>
+              <button
+                className="dash-btn neutral"
+                onClick={fetchSentiment}
+                disabled={sentimentLoading}
+              >
+                {sentimentLoading ? "Refreshing..." : "Refresh sentiment"}
+              </button>
+            </div>
+
+            {sentimentError && (
+              <div className="dash-alert error" style={{ marginBottom: 10 }}>
+                {sentimentError}
+              </div>
+            )}
+
+            {sentimentLoading && !sentimentData ? (
+              <p>Loading sentiment insights...</p>
+            ) : sentimentData ? (
+              <>
+                <div className="dash-grid-2" style={{ marginBottom: 12 }}>
+                  <div className="dash-card" style={{ background: "#f8fafc" }}>
+                    <h4 style={{ marginTop: 0, marginBottom: 8 }}>
+                      Overall Mood
+                    </h4>
+                    <p
+                      className="dash-stat-label"
+                      style={{ margin: "0 0 8px" }}
+                    >
+                      Asset: {selectedCryptoMeta.name} (
+                      {selectedCryptoMeta.symbol})
+                    </p>
+                    <p style={{ margin: 0 }}>
+                      <strong>Label:</strong>{" "}
+                      <span
+                        style={{
+                          color: sentimentColor(sentimentData.overall?.label),
+                          fontWeight: 700,
+                          textTransform: "uppercase",
+                        }}
+                      >
+                        {sentimentData.overall?.label || "neutral"}
+                      </span>
+                    </p>
+                    <p style={{ margin: "6px 0 0" }}>
+                      <strong>Score:</strong>{" "}
+                      {Number(sentimentData.overall?.score || 0).toFixed(3)}
+                    </p>
+                  </div>
+
+                  <div className="dash-card" style={{ background: "#f8fafc" }}>
+                    <h4 style={{ marginTop: 0, marginBottom: 8 }}>Sources</h4>
+                    <p style={{ margin: 0 }}>
+                      <strong>News:</strong>{" "}
+                      <span
+                        style={{
+                          color: sentimentColor(
+                            sentimentData.news?.summary?.label,
+                          ),
+                          fontWeight: 700,
+                          textTransform: "uppercase",
+                        }}
+                      >
+                        {sentimentData.news?.summary?.label || "neutral"}
+                      </span>{" "}
+                      ({sentimentData.news?.summary?.count || 0} items)
+                    </p>
+                    <p style={{ margin: "6px 0 0" }}>
+                      <strong>Twitter:</strong>{" "}
+                      <span
+                        style={{
+                          color: sentimentColor(
+                            sentimentData.twitter?.summary?.label,
+                          ),
+                          fontWeight: 700,
+                          textTransform: "uppercase",
+                        }}
+                      >
+                        {sentimentData.twitter?.summary?.label || "neutral"}
+                      </span>{" "}
+                      ({sentimentData.twitter?.summary?.count || 0} items)
+                    </p>
+                    <p className="dash-stat-label" style={{ marginTop: 8 }}>
+                      Twitter source: {sentimentData.twitter?.source || "-"}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="dash-grid-2">
+                  <div>
+                    <h4 style={{ marginBottom: 8 }}>Recent News Signals</h4>
+                    <div style={{ display: "grid", gap: 8 }}>
+                      {(sentimentData.news?.items || [])
+                        .slice(0, 5)
+                        .map((n, i) => (
+                          <div
+                            key={`${n.title}-${i}`}
+                            style={{
+                              border: "1px solid #e2e8f0",
+                              borderRadius: 10,
+                              padding: 10,
+                              background: "#fff",
+                            }}
+                          >
+                            <div
+                              style={{
+                                display: "flex",
+                                justifyContent: "space-between",
+                                alignItems: "center",
+                                gap: 10,
+                              }}
+                            >
+                              <strong
+                                style={{ color: "#0f172a", fontSize: 13 }}
+                              >
+                                {n.title}
+                              </strong>
+                              <span
+                                style={{
+                                  color: sentimentColor(n.sentiment_label),
+                                  fontWeight: 700,
+                                  textTransform: "uppercase",
+                                  fontSize: 11,
+                                }}
+                              >
+                                {n.sentiment_label}
+                              </span>
+                            </div>
+                            <div
+                              className="dash-stat-label"
+                              style={{ marginTop: 4 }}
+                            >
+                              {n.source} · score{" "}
+                              {Number(n.sentiment_score || 0).toFixed(3)}
+                            </div>
+                          </div>
+                        ))}
+                    </div>
+                  </div>
+
+                  <div>
+                    <h4 style={{ marginBottom: 8 }}>Recent Twitter Signals</h4>
+                    <div style={{ display: "grid", gap: 8 }}>
+                      {(sentimentData.twitter?.items || []).length === 0 ? (
+                        <div className="dash-alert" style={{ margin: 0 }}>
+                          <div>
+                            No recent Twitter items found.
+                            <br />
+                            Source status:{" "}
+                            {sentimentData.twitter?.source || "unavailable"}
+                            <br />
+                            {!sentimentData.twitter?.is_configured
+                              ? "Set TWITTER_BEARER_TOKEN in backend .env and restart API for direct X API access."
+                              : "Twitter token is configured. Try refresh in 1-2 minutes (rate limits/network can temporarily return no results)."}
+                          </div>
+                        </div>
+                      ) : (
+                        (sentimentData.twitter?.items || [])
+                          .slice(0, 5)
+                          .map((t, i) => (
+                            <div
+                              key={`${t.text}-${i}`}
+                              style={{
+                                border: "1px solid #e2e8f0",
+                                borderRadius: 10,
+                                padding: 10,
+                                background: "#fff",
+                              }}
+                            >
+                              <div
+                                style={{
+                                  display: "flex",
+                                  justifyContent: "space-between",
+                                  alignItems: "center",
+                                  gap: 10,
+                                }}
+                              >
+                                <strong
+                                  style={{
+                                    color: "#0f172a",
+                                    fontSize: 13,
+                                    display: "-webkit-box",
+                                    WebkitLineClamp: 2,
+                                    WebkitBoxOrient: "vertical",
+                                    overflow: "hidden",
+                                  }}
+                                >
+                                  {t.text}
+                                </strong>
+                                <span
+                                  style={{
+                                    color: sentimentColor(t.sentiment_label),
+                                    fontWeight: 700,
+                                    textTransform: "uppercase",
+                                    fontSize: 11,
+                                  }}
+                                >
+                                  {t.sentiment_label}
+                                </span>
+                              </div>
+                              <div
+                                className="dash-stat-label"
+                                style={{ marginTop: 4 }}
+                              >
+                                {t.source} · score{" "}
+                                {Number(t.sentiment_score || 0).toFixed(3)}
+                              </div>
+                            </div>
+                          ))
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </>
+            ) : (
+              <p>No sentiment data available.</p>
             )}
           </section>
         )}

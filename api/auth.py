@@ -112,6 +112,7 @@ class PredictionRequest(BaseModel):
     symbol: str
     horizon: int = 1
     explanation_mode: str = "simple"
+    risk_tolerance: str = "medium"
 
 
 class TwoFASetupResponse(BaseModel):
@@ -539,6 +540,35 @@ def get_symbol_dataframe(symbol: str) -> pd.DataFrame:
     df = pd.DataFrame([dict(r) for r in rows])
     df["timestamp"] = pd.to_datetime(df["timestamp"])
     return df
+
+
+def compute_risk_profile(raw_df: pd.DataFrame) -> tuple[float, str]:
+    closes = pd.to_numeric(raw_df.get("close"), errors="coerce").dropna()
+    returns = closes.pct_change().dropna().tail(30)
+    if returns.empty:
+        return 50.0, "medium"
+
+    # 30-day volatility proxy converted to a 1..100 score.
+    vol_pct = float(returns.std() * math.sqrt(30) * 100)
+    score = float(np.clip(vol_pct * 2.5, 1.0, 100.0))
+
+    if score < 33:
+        level = "low"
+    elif score < 66:
+        level = "medium"
+    else:
+        level = "high"
+    return score, level
+
+
+def build_risk_note(risk_level: str, risk_tolerance: str) -> str:
+    if risk_level == "high" and risk_tolerance == "low":
+        return "Current market volatility is high versus your low risk preference. Consider reducing position size."
+    if risk_level == "low" and risk_tolerance == "high":
+        return "Market volatility is currently low compared to your high risk preference."
+    if risk_level == "medium":
+        return "Market volatility is in a moderate range. Manage position sizing and stop-loss levels carefully."
+    return f"Market volatility is currently {risk_level}."
 
 
 def generate_explanation(
@@ -1369,6 +1399,9 @@ def user_predict(
     mode = payload.explanation_mode.strip().lower()
     if mode not in {"simple", "technical"}:
         raise HTTPException(status_code=400, detail="explanation_mode must be simple or technical.")
+    risk_tolerance = (payload.risk_tolerance or "medium").strip().lower()
+    if risk_tolerance not in {"low", "medium", "high"}:
+        raise HTTPException(status_code=400, detail="risk_tolerance must be low, medium, or high.")
 
     conn = get_connection()
     try:
@@ -1389,6 +1422,9 @@ def user_predict(
     feature_df = build_features(raw_df)
     if feature_df.empty:
         raise HTTPException(status_code=400, detail="Not enough feature rows.")
+
+    risk_score, risk_level = compute_risk_profile(raw_df)
+    risk_note = build_risk_note(risk_level, risk_tolerance)
 
     last_row = feature_df.iloc[-1]
     last_close = float(last_row["close"])
@@ -1457,6 +1493,10 @@ def user_predict(
         "predicted_price": predicted,
         "trend": trend,
         "confidence": confidence,
+        "risk_score": risk_score,
+        "risk_level": risk_level,
+        "risk_tolerance": risk_tolerance,
+        "risk_note": risk_note,
         "explanation_mode": mode,
         "explanation": explanation,
     }
