@@ -206,6 +206,57 @@ export default function UserDashboard() {
   const [twoFASetup, setTwoFASetup] = useState(null); // expected: { secret, otpauth_uri }
   const [qrDataUrl, setQrDataUrl] = useState("");
 
+  // ── AI Chatbot ─────────────────────────────────────────────
+  const [chatOpen, setChatOpen] = useState(false);
+  const [chatMessages, setChatMessages] = useState([
+    {
+      role: "assistant",
+      content:
+        "Hi! I'm your crypto AI assistant 🤖 Ask me anything about cryptocurrencies, market trends, blockchain, DeFi, or this platform's predictions.",
+    },
+  ]);
+  const [chatInput, setChatInput] = useState("");
+  const [chatLoading, setChatLoading] = useState(false);
+  const chatBottomRef = React.useRef(null);
+
+  const scrollChatToBottom = () => {
+    chatBottomRef.current?.scrollIntoView({ behavior: "smooth" });
+  };
+
+  useEffect(() => {
+    if (chatOpen) scrollChatToBottom();
+  }, [chatMessages, chatOpen]);
+
+  const sendChatMessage = async () => {
+    const text = chatInput.trim();
+    if (!text || chatLoading) return;
+
+    const userMsg = { role: "user", content: text };
+    const nextHistory = [...chatMessages, userMsg];
+    setChatMessages(nextHistory);
+    setChatInput("");
+    setChatLoading(true);
+
+    try {
+      const res = await api.post("/user/chat", {
+        message: text,
+        history: chatMessages, // send full history for context
+      });
+      const reply = res.data?.reply || "Sorry, I couldn't generate a response.";
+      setChatMessages([...nextHistory, { role: "assistant", content: reply }]);
+    } catch {
+      setChatMessages([
+        ...nextHistory,
+        {
+          role: "assistant",
+          content: "Something went wrong. Please try again.",
+        },
+      ]);
+    } finally {
+      setChatLoading(false);
+    }
+  };
+
   const menuItems = [
     { key: "dashboard", label: "Dashboard" },
     { key: "predict", label: "Predict Price" },
@@ -1205,6 +1256,73 @@ export default function UserDashboard() {
           </section>
         )}
       </main>
+
+      {/* ── AI Chatbot floating widget ───────────────────── */}
+      {chatOpen && (
+        <div className="chat-panel">
+          <div className="chat-header">
+            <div>
+              <h4>🤖 Crypto AI Assistant</h4>
+              <span>Powered by Gemini AI</span>
+            </div>
+            <button
+              className="chat-close-btn"
+              onClick={() => setChatOpen(false)}
+              title="Close"
+            >
+              ✕
+            </button>
+          </div>
+
+          <div className="chat-messages">
+            {chatMessages.map((msg, idx) => (
+              <div key={idx} className={`chat-bubble ${msg.role}`}>
+                {msg.content.split("\n").map((line, i) => (
+                  <span key={i}>
+                    {parseBold(line)}
+                    {i < msg.content.split("\n").length - 1 && <br />}
+                  </span>
+                ))}
+              </div>
+            ))}
+            {chatLoading && <div className="chat-bubble typing">Thinking…</div>}
+            <div ref={chatBottomRef} />
+          </div>
+
+          <div className="chat-input-row">
+            <textarea
+              className="chat-input"
+              rows={1}
+              placeholder="Ask about crypto, predictions, markets…"
+              value={chatInput}
+              onChange={(e) => setChatInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !e.shiftKey) {
+                  e.preventDefault();
+                  sendChatMessage();
+                }
+              }}
+              disabled={chatLoading}
+            />
+            <button
+              className="chat-send-btn"
+              onClick={sendChatMessage}
+              disabled={chatLoading || !chatInput.trim()}
+              title="Send"
+            >
+              ➤
+            </button>
+          </div>
+        </div>
+      )}
+
+      <button
+        className="chat-fab"
+        onClick={() => setChatOpen((o) => !o)}
+        title={chatOpen ? "Close AI assistant" : "Open AI assistant"}
+      >
+        {chatOpen ? "✕" : "💬"}
+      </button>
     </div>
   );
 }

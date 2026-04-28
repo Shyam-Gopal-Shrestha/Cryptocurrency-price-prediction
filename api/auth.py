@@ -120,6 +120,16 @@ class TwoFASetupResponse(BaseModel):
     otpauth_uri: str
 
 
+class ChatMessage(BaseModel):
+    role: str  # "user" or "assistant"
+    content: str
+
+
+class ChatRequest(BaseModel):
+    message: str
+    history: List[ChatMessage] = Field(default_factory=list)
+
+
 def get_connection() -> sqlite3.Connection:
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
@@ -1623,5 +1633,70 @@ def prediction_vs_actual(
         },
         "points": points,
     }
+
+@router.post("/user/chat")
+def user_chat(
+    payload: ChatRequest,
+    user: sqlite3.Row = Depends(require_role("user", "researcher", "admin")),
+):
+    """AI assistant chatbot endpoint powered by Gemini."""
+    SYSTEM_PROMPT = (
+        "You are a knowledgeable and friendly cryptocurrency assistant embedded in a crypto price "
+        "prediction platform. You help users understand cryptocurrencies, blockchain technology, "
+        "DeFi, trading concepts, market analysis, and the predictions made on this platform. "
+        "Be concise, clear, and always include a short disclaimer that your responses are "
+        "not financial advice when discussing prices or investment topics. "
+        "Keep replies under 300 words unless the user explicitly asks for detail."
+    )
+
+    fallback_reply = (
+        "I'm sorry, I'm unable to answer right now — the AI service is not configured. "
+        "Please ensure a valid GEMINI_API_KEY is set in the environment."
+    )
+
+    api_key = get_gemini_api_key()
+    if not api_key:
+        return {"reply": fallback_reply, "provider": "none"}
+
+    try:
+        import google.generativeai as genai
+
+        genai.configure(api_key=api_key)
+
+        # Build conversation for Gemini multi-turn
+        # Gemini expects alternating user/model turns
+        conversation_parts: List[dict] = []
+        for msg in payload.history[-20:]:  # keep last 20 messages for context
+            role = "user" if msg.role == "user" else "model"
+            conversation_parts.append({"role": role, "parts": [{"text": msg.content}]})
+
+        # Append the new user message
+        conversation_parts.append({"role": "user", "parts": [{"text": payload.message}]})
+
+        candidate_models = [
+            "gemini-2.5-flash",
+            "gemini-2.0-flash",
+            "gemini-flash-latest",
+            "gemini-pro-latest",
+        ]
+
+        for model_name in candidate_models:
+            try:
+                model = genai.GenerativeModel(
+                    model_name=model_name,
+                    system_instruction=SYSTEM_PROMPT,
+                )
+                response = model.generate_content(conversation_parts)
+                text = (response.text or "").strip()
+                if text:
+                    return {"reply": text, "provider": "gemini"}
+            except Exception:
+                continue
+
+    except Exception:
+        pass
+
+    return {"reply": fallback_reply, "provider": "none"}
+
 
 init_auth_db()
