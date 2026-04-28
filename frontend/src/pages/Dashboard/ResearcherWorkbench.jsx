@@ -17,7 +17,7 @@ import { Line } from "react-chartjs-2";
 ChartJS.register(CategoryScale, LinearScale, BarElement, Tooltip, Legend);
 
 export default function ResearcherWorkbench() {
-  const { logout } = useContext(AuthContext);
+  const { logout, user } = useContext(AuthContext);
   const [activeMenu, setActiveMenu] = useState("dashboard");
   const [config, setConfig] = useState({ cryptocurrencies: [], models: [] });
   const [experiments, setExperiments] = useState([]);
@@ -110,6 +110,18 @@ export default function ResearcherWorkbench() {
     if (trained.length === 0) return null;
     return [...trained].sort((a, b) => a.metrics.rmse - b.metrics.rmse)[0];
   }, [experiments]);
+
+  const researcherDisplayName = useMemo(() => {
+    const raw = user?.full_name || user?.name || user?.email || "";
+    if (!raw) return "Researcher";
+    const localPart = raw.includes("@") ? raw.split("@")[0] : raw;
+    return localPart
+      .replace(/[._-]+/g, " ")
+      .split(" ")
+      .filter(Boolean)
+      .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+      .join(" ");
+  }, [user]);
 
   const comparisonData = useMemo(() => {
     const labels = experiments.map((e) => `#${e.id} ${e.model_name}`);
@@ -309,7 +321,7 @@ export default function ResearcherWorkbench() {
       <main className="dash-main">
         <div className="dash-topbar">
           <div>
-            <h1>Researcher Dashboard</h1>
+            <h1>Welcome, {researcherDisplayName}</h1>
             <p>
               Fetch, preprocess, train, evaluate, and deploy forecasting models.
             </p>

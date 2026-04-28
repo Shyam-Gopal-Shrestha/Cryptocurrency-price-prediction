@@ -53,7 +53,13 @@ export default function Login() {
   const navigate = useNavigate();
 
   const handleChange = (e) => {
-    setForm((prev) => ({ ...prev, [e.target.name]: e.target.value }));
+    const { name, value } = e.target;
+    if (name === "otp_code") {
+      const onlyDigits = value.replace(/\D/g, "").slice(0, 6);
+      setForm((prev) => ({ ...prev, otp_code: onlyDigits }));
+    } else {
+      setForm((prev) => ({ ...prev, [name]: value }));
+    }
     setError("");
   };
 
@@ -82,7 +88,12 @@ export default function Login() {
     setError("");
 
     try {
-      const result = await login(form);
+      const payload = {
+        ...form,
+        email: form.email.trim(),
+        otp_code: form.otp_code.replace(/\D/g, ""),
+      };
+      const result = await login(payload);
 
       if (result?.requires_2fa) {
         setRequires2FA(true);
@@ -96,10 +107,16 @@ export default function Login() {
       else if (result.role === "researcher") navigate("/researcher");
       else navigate("/user");
     } catch (err) {
-      setError(
-        err.response?.data?.detail ||
-          "Login failed. Please check your credentials.",
-      );
+      if (err.response?.status === 401 && requires2FA) {
+        setError(
+          "Invalid 2FA code. Please try current code from your authenticator app.",
+        );
+      } else {
+        setError(
+          err.response?.data?.detail ||
+            "Login failed. Please check your credentials.",
+        );
+      }
     } finally {
       setLoading(false);
     }

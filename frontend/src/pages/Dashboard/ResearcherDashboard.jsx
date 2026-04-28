@@ -354,6 +354,7 @@ function getRefreshMs(refreshRate) {
 
 export default function ResearcherDashboard() {
   const [activeMenu, setActiveMenu] = useState("Dashboard");
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [coin, setCoin] = useState("BTC");
   const [model, setModel] = useState("LSTM");
   const [days, setDays] = useState("30D");
@@ -790,7 +791,26 @@ export default function ResearcherDashboard() {
     setSaveMessage("Settings saved and applied.");
   };
 
-  const { logout } = useContext(AuthContext);
+  const { logout, user } = useContext(AuthContext);
+
+  const researcherDisplayName = useMemo(() => {
+    const raw =
+      user?.full_name ||
+      user?.name ||
+      user?.email ||
+      profileData.fullName ||
+      "";
+    if (!raw) return "Researcher";
+    const localPart = raw.includes("@") ? raw.split("@")[0] : raw;
+    const cleaned = localPart
+      .replace(/[._-]+/g, " ")
+      .split(" ")
+      .filter(Boolean)
+      .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+      .join(" ");
+
+    return cleaned || "Researcher";
+  }, [user, profileData.fullName]);
 
   const handleLogout = () => {
     logout();
@@ -1799,7 +1819,14 @@ export default function ResearcherDashboard() {
 
   return (
     <div className="research-shell">
-      <aside className="sidebar">
+      {sidebarOpen && (
+        <div
+          className="res-sidebar-overlay visible"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
+
+      <aside className={`sidebar${sidebarOpen ? " open" : ""}`}>
         <div className="brand-block">
           <div className="brand-icon">◈</div>
           <h2>CryptoResearch</h2>
@@ -1810,7 +1837,10 @@ export default function ResearcherDashboard() {
             className={
               activeMenu === "Profile" ? "menu-item active-menu" : "menu-item"
             }
-            onClick={() => setActiveMenu("Profile")}
+            onClick={() => {
+              setActiveMenu("Profile");
+              setSidebarOpen(false);
+            }}
             type="button"
           >
             <User size={18} />
@@ -1821,7 +1851,10 @@ export default function ResearcherDashboard() {
             className={
               activeMenu === "Dashboard" ? "menu-item active-menu" : "menu-item"
             }
-            onClick={() => setActiveMenu("Dashboard")}
+            onClick={() => {
+              setActiveMenu("Dashboard");
+              setSidebarOpen(false);
+            }}
             type="button"
           >
             <LayoutDashboard size={18} />
@@ -1832,7 +1865,10 @@ export default function ResearcherDashboard() {
             className={
               activeMenu === "Live Data" ? "menu-item active-menu" : "menu-item"
             }
-            onClick={() => setActiveMenu("Live Data")}
+            onClick={() => {
+              setActiveMenu("Live Data");
+              setSidebarOpen(false);
+            }}
             type="button"
           >
             <Activity size={18} />
@@ -1843,7 +1879,10 @@ export default function ResearcherDashboard() {
             className={
               activeMenu === "Research" ? "menu-item active-menu" : "menu-item"
             }
-            onClick={() => setActiveMenu("Research")}
+            onClick={() => {
+              setActiveMenu("Research");
+              setSidebarOpen(false);
+            }}
             type="button"
           >
             <Brain size={18} />
@@ -1854,7 +1893,10 @@ export default function ResearcherDashboard() {
             className={
               activeMenu === "Reports" ? "menu-item active-menu" : "menu-item"
             }
-            onClick={() => setActiveMenu("Reports")}
+            onClick={() => {
+              setActiveMenu("Reports");
+              setSidebarOpen(false);
+            }}
             type="button"
           >
             <FolderOpen size={18} />
@@ -1867,7 +1909,10 @@ export default function ResearcherDashboard() {
                 ? "menu-item active-menu"
                 : "menu-item"
             }
-            onClick={() => setActiveMenu("Notifications")}
+            onClick={() => {
+              setActiveMenu("Notifications");
+              setSidebarOpen(false);
+            }}
             type="button"
           >
             <Bell size={18} />
@@ -1884,7 +1929,10 @@ export default function ResearcherDashboard() {
           <button
             className="buy-btn"
             type="button"
-            onClick={() => setActiveMenu("Research")}
+            onClick={() => {
+              setActiveMenu("Research");
+              setSidebarOpen(false);
+            }}
           >
             Open Workspace
           </button>
@@ -1895,7 +1943,10 @@ export default function ResearcherDashboard() {
             className={
               activeMenu === "Settings" ? "menu-item active-menu" : "menu-item"
             }
-            onClick={() => setActiveMenu("Settings")}
+            onClick={() => {
+              setActiveMenu("Settings");
+              setSidebarOpen(false);
+            }}
             type="button"
           >
             <Settings size={18} />
@@ -1911,10 +1962,21 @@ export default function ResearcherDashboard() {
 
       <main className="main-content">
         <div className="topbar">
+          <button
+            className="res-hamburger"
+            onClick={() => setSidebarOpen(true)}
+            aria-label="Open sidebar"
+            type="button"
+          >
+            <span />
+            <span />
+            <span />
+          </button>
+
           <div className="page-heading">
-            <h1>{activeMenu}</h1>
+            <h1>Welcome, {researcherDisplayName}</h1>
             <p>
-              Welcome back, {profileData.fullName || "Researcher"} ·{" "}
+              {activeMenu} · {profileData.fullName || "Researcher"} ·{" "}
               {currentTime.toLocaleDateString()} ·{" "}
               {currentTime.toLocaleTimeString()}
             </p>

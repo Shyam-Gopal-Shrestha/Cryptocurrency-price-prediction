@@ -217,6 +217,7 @@ export default function UserDashboard() {
   ]);
   const [chatInput, setChatInput] = useState("");
   const [chatLoading, setChatLoading] = useState(false);
+  const [selectedQuickQueries, setSelectedQuickQueries] = useState([]);
   const chatBottomRef = React.useRef(null);
 
   const scrollChatToBottom = () => {
@@ -227,14 +228,15 @@ export default function UserDashboard() {
     if (chatOpen) scrollChatToBottom();
   }, [chatMessages, chatOpen]);
 
-  const sendChatMessage = async () => {
-    const text = chatInput.trim();
+  const sendChatMessage = async (overrideText = "") => {
+    const text = (overrideText || chatInput).trim();
     if (!text || chatLoading) return;
 
     const userMsg = { role: "user", content: text };
     const nextHistory = [...chatMessages, userMsg];
     setChatMessages(nextHistory);
     setChatInput("");
+    setSelectedQuickQueries([]);
     setChatLoading(true);
 
     try {
@@ -257,14 +259,38 @@ export default function UserDashboard() {
     }
   };
 
+  const toggleQuickQuery = (query) => {
+    setSelectedQuickQueries((prev) =>
+      prev.includes(query) ? prev.filter((q) => q !== query) : [...prev, query],
+    );
+  };
+
+  const addSelectedQueriesToInput = () => {
+    if (!selectedQuickQueries.length || chatLoading) return;
+    const merged = selectedQuickQueries.join("\n");
+    setChatInput((prev) =>
+      prev.trim() ? `${prev.trim()}\n${merged}` : merged,
+    );
+  };
+
+  const askSelectedQueries = async () => {
+    if (!selectedQuickQueries.length || chatLoading) return;
+    const combinedPrompt =
+      "Please answer these cryptocurrency questions one by one with concise bullets:\n" +
+      selectedQuickQueries.map((q, i) => `${i + 1}. ${q}`).join("\n");
+    await sendChatMessage(combinedPrompt);
+  };
+
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+
   const menuItems = [
-    { key: "dashboard", label: "Dashboard" },
-    { key: "predict", label: "Predict Price" },
-    { key: "live", label: "Live Chart" },
-    { key: "sentiment", label: "Sentiment" },
-    { key: "history", label: "History" },
-    { key: "profile", label: "Profile" },
-    { key: "security", label: "Security" },
+    { key: "dashboard", label: "Dashboard", icon: "📊" },
+    { key: "predict", label: "Predict Price", icon: "🔮" },
+    { key: "live", label: "Live Chart", icon: "📈" },
+    { key: "sentiment", label: "Sentiment", icon: "🧠" },
+    { key: "history", label: "History", icon: "🕑" },
+    { key: "profile", label: "Profile", icon: "👤" },
+    { key: "security", label: "Security", icon: "🔒" },
   ];
 
   const loadConfigAndHistory = async () => {
@@ -290,6 +316,7 @@ export default function UserDashboard() {
 
   useEffect(() => {
     loadConfigAndHistory();
+    loadProfile();
   }, []);
 
   const loadProfile = async () => {
@@ -333,6 +360,36 @@ export default function UserDashboard() {
     sentimentData?.coin_id,
     sentimentData?.symbol,
   ]);
+
+  const userDisplayName = useMemo(() => {
+    const raw = profile?.full_name || profile?.name || profile?.email || "";
+    if (!raw) return "Trader";
+    const localPart = raw.includes("@") ? raw.split("@")[0] : raw;
+    return localPart
+      .replace(/[._-]+/g, " ")
+      .split(" ")
+      .filter(Boolean)
+      .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+      .join(" ");
+  }, [profile]);
+
+  const quickQueryOptions = useMemo(
+    () => [
+      `What is the current short-term outlook for ${selectedCryptoMeta.name} (${selectedCryptoMeta.symbol})?`,
+      `Explain the key risks before investing in ${selectedCryptoMeta.symbol}.`,
+      `Give me a simple buy/hold/sell framework for ${selectedCryptoMeta.symbol}.`,
+      `How should I manage risk and stop-loss for ${selectedCryptoMeta.symbol}?`,
+      `Summarize recent market sentiment impact on ${selectedCryptoMeta.symbol}.`,
+      "Compare technical analysis vs sentiment analysis for decision-making.",
+      "What should a beginner check before entering a crypto trade?",
+      "How can I avoid common crypto trading mistakes?",
+    ],
+    [selectedCryptoMeta.name, selectedCryptoMeta.symbol],
+  );
+
+  useEffect(() => {
+    setSelectedQuickQueries([]);
+  }, [selectedCryptoMeta.symbol]);
 
   const historyChartData = useMemo(() => {
     const points = [...history].reverse().slice(-20);
@@ -597,8 +654,16 @@ export default function UserDashboard() {
 
   return (
     <div className="dash-layout">
-      <aside className="dash-sidebar">
-        <div>
+      {/* Mobile overlay */}
+      {sidebarOpen && (
+        <div
+          className="dash-sidebar-overlay visible"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
+
+      <aside className={`dash-sidebar${sidebarOpen ? " open" : ""}`}>
+        <div className="dash-sidebar-header">
           <div className="dash-brand">
             <span className="dash-brand-dot" />
             <h2>User Space</h2>
@@ -606,13 +671,19 @@ export default function UserDashboard() {
           <p className="dash-subtitle">Prediction assistant and history</p>
         </div>
 
+        <div className="dash-sidebar-divider" />
+
         <div className="dash-menu">
           {menuItems.map((item) => (
             <button
               key={item.key}
               className={`dash-menu-btn ${activeMenu === item.key ? "active" : ""}`}
-              onClick={() => setActiveMenu(item.key)}
+              onClick={() => {
+                setActiveMenu(item.key);
+                setSidebarOpen(false);
+              }}
             >
+              <span className="dash-menu-icon">{item.icon}</span>
               {item.label}
             </button>
           ))}
@@ -630,15 +701,22 @@ export default function UserDashboard() {
 
       <main className="dash-main">
         <div className="dash-topbar">
-          <div>
-            <h1>User Dashboard</h1>
-            <p>
-              Choose a crypto, set timeframe, and get AI-assisted explanation.
-            </p>
+          <div className="dash-topbar-left">
+            <button
+              className="dash-hamburger"
+              onClick={() => setSidebarOpen(true)}
+              aria-label="Open menu"
+            >
+              <span />
+              <span />
+              <span />
+            </button>
+            <div>
+              <h1>Welcome, {userDisplayName}</h1>
+              <p>Your crypto predictions and analytics workspace</p>
+            </div>
           </div>
-          <span className="dash-chip">
-            {loading ? "Predicting..." : "Ready"}
-          </span>
+          <span className="dash-chip">Live</span>
         </div>
 
         {error && <div className="dash-alert error">{error}</div>}
@@ -1268,9 +1346,9 @@ export default function UserDashboard() {
             <button
               className="chat-close-btn"
               onClick={() => setChatOpen(false)}
-              title="Close"
+              title="Hide"
             >
-              ✕
+              Hide
             </button>
           </div>
 
@@ -1287,6 +1365,48 @@ export default function UserDashboard() {
             ))}
             {chatLoading && <div className="chat-bubble typing">Thinking…</div>}
             <div ref={chatBottomRef} />
+          </div>
+
+          <div className="chat-quick-wrap">
+            <div className="chat-quick-head">
+              <p>Quick queries (multi-select)</p>
+              {selectedQuickQueries.length > 0 && (
+                <span>{selectedQuickQueries.length} selected</span>
+              )}
+            </div>
+
+            <div className="chat-quick-grid">
+              {quickQueryOptions.map((query) => (
+                <button
+                  key={query}
+                  type="button"
+                  className={`chat-quick-chip ${selectedQuickQueries.includes(query) ? "active" : ""}`}
+                  onClick={() => toggleQuickQuery(query)}
+                  disabled={chatLoading}
+                >
+                  {query}
+                </button>
+              ))}
+            </div>
+
+            <div className="chat-quick-actions">
+              <button
+                type="button"
+                className="chat-quick-btn neutral"
+                onClick={addSelectedQueriesToInput}
+                disabled={chatLoading || selectedQuickQueries.length === 0}
+              >
+                Add selected
+              </button>
+              <button
+                type="button"
+                className="chat-quick-btn primary"
+                onClick={askSelectedQueries}
+                disabled={chatLoading || selectedQuickQueries.length === 0}
+              >
+                Ask selected
+              </button>
+            </div>
           </div>
 
           <div className="chat-input-row">
@@ -1316,13 +1436,15 @@ export default function UserDashboard() {
         </div>
       )}
 
-      <button
-        className="chat-fab"
-        onClick={() => setChatOpen((o) => !o)}
-        title={chatOpen ? "Close AI assistant" : "Open AI assistant"}
-      >
-        {chatOpen ? "✕" : "💬"}
-      </button>
+      {!chatOpen && (
+        <button
+          className="chat-fab"
+          onClick={() => setChatOpen(true)}
+          title="Open AI assistant"
+        >
+          💬
+        </button>
+      )}
     </div>
   );
 }

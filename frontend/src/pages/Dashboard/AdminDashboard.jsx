@@ -12,6 +12,7 @@ export default function AdminDashboard() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
+  const [profile, setProfile] = useState(null);
   const [pendingUsers, setPendingUsers] = useState([]);
   const [allUsers, setAllUsers] = useState([]);
   const [cryptos, setCryptos] = useState([]);
@@ -55,9 +56,31 @@ export default function AdminDashboard() {
     }
   };
 
+  const loadProfile = async () => {
+    try {
+      const me = await api.get("/auth/me");
+      setProfile(me.data || null);
+    } catch {
+      // keep optional for resilience
+    }
+  };
+
   useEffect(() => {
     loadData();
+    loadProfile();
   }, []);
+
+  const adminDisplayName = useMemo(() => {
+    const raw = profile?.full_name || profile?.name || profile?.email || "";
+    if (!raw) return "Admin";
+    const localPart = raw.includes("@") ? raw.split("@")[0] : raw;
+    return localPart
+      .replace(/[._-]+/g, " ")
+      .split(" ")
+      .filter(Boolean)
+      .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+      .join(" ");
+  }, [profile]);
 
   const approveUser = async (userId, approved) => {
     setError("");
@@ -160,20 +183,29 @@ export default function AdminDashboard() {
     };
   }, [allUsers, cryptos, models, apiUsage]);
 
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+
   const menuItems = [
-    { key: "dashboard", label: "Dashboard" },
-    { key: "approvals", label: "User Approval" },
-    { key: "users", label: "User Management" },
-    { key: "crypto", label: "Crypto Configuration" },
-    { key: "models", label: "Model Control" },
-    { key: "logs", label: "Logs" },
-    { key: "usage", label: "API Usage" },
+    { key: "dashboard", label: "Dashboard", icon: "📊" },
+    { key: "approvals", label: "User Approval", icon: "✅" },
+    { key: "users", label: "User Management", icon: "👥" },
+    { key: "crypto", label: "Crypto Configuration", icon: "🪙" },
+    { key: "models", label: "Model Control", icon: "🧠" },
+    { key: "logs", label: "Logs", icon: "📝" },
+    { key: "usage", label: "API Usage", icon: "📊" },
   ];
 
   return (
     <div className="dash-layout">
-      <aside className="dash-sidebar">
-        <div>
+      {sidebarOpen && (
+        <div
+          className="dash-sidebar-overlay visible"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
+
+      <aside className={`dash-sidebar${sidebarOpen ? " open" : ""}`}>
+        <div className="dash-sidebar-header">
           <div className="dash-brand">
             <span className="dash-brand-dot" />
             <h2>Admin Console</h2>
@@ -181,13 +213,19 @@ export default function AdminDashboard() {
           <p className="dash-subtitle">System control and governance</p>
         </div>
 
+        <div className="dash-sidebar-divider" />
+
         <div className="dash-menu">
           {menuItems.map((item) => (
             <button
               key={item.key}
               className={`dash-menu-btn ${activeMenu === item.key ? "active" : ""}`}
-              onClick={() => setActiveMenu(item.key)}
+              onClick={() => {
+                setActiveMenu(item.key);
+                setSidebarOpen(false);
+              }}
             >
+              <span className="dash-menu-icon">{item.icon}</span>
               {item.label}
             </button>
           ))}
@@ -205,12 +243,23 @@ export default function AdminDashboard() {
 
       <main className="dash-main">
         <div className="dash-topbar">
-          <div>
-            <h1>Admin Dashboard</h1>
-            <p>
-              Approve users, control model access, and monitor API/system
-              activity.
-            </p>
+          <div className="dash-topbar-left">
+            <button
+              className="dash-hamburger"
+              onClick={() => setSidebarOpen(true)}
+              aria-label="Open menu"
+            >
+              <span />
+              <span />
+              <span />
+            </button>
+            <div>
+              <h1>Welcome, {adminDisplayName}</h1>
+              <p>
+                Approve users, control model access, and monitor API/system
+                activity.
+              </p>
+            </div>
           </div>
           <span className="dash-chip">{loading ? "Syncing..." : "Live"}</span>
         </div>

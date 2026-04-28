@@ -685,8 +685,11 @@ def login(payload: LoginRequest):
     if int(user["twofa_enabled"]) == 1:
         if not payload.otp_code:
             return {"requires_2fa": True, "message": "2FA code required."}
+        normalized_otp = "".join(ch for ch in payload.otp_code if ch.isdigit())
+        if len(normalized_otp) != 6:
+            raise HTTPException(status_code=401, detail="Invalid 2FA code.")
         totp = pyotp.TOTP(user["twofa_secret"])
-        if not totp.verify(payload.otp_code.strip(), valid_window=1):
+        if not totp.verify(normalized_otp, valid_window=2):
             raise HTTPException(status_code=401, detail="Invalid 2FA code.")
 
     raw_token = secrets.token_urlsafe(48)
