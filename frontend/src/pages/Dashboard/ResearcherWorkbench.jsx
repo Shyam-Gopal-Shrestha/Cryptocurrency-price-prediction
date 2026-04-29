@@ -242,6 +242,10 @@ export default function ResearcherWorkbench() {
   const [pvLoading, setPvLoading] = useState(false);
   const [pvError, setPvError] = useState("");
 
+  const [expSymbolFilter, setExpSymbolFilter] = useState("all");
+  const [expModelFilter, setExpModelFilter] = useState("all");
+  const [expStatusFilter, setExpStatusFilter] = useState("all");
+
   const loadPredictionVsActual = async () => {
     setPvLoading(true);
     setPvError("");
@@ -284,6 +288,46 @@ export default function ResearcherWorkbench() {
         ],
       }
     : null;
+
+  const filteredExperiments = useMemo(() => {
+    return experiments.filter((exp) => {
+      const symbolOk =
+        expSymbolFilter === "all" || exp.symbol === expSymbolFilter;
+      const modelOk =
+        expModelFilter === "all" || exp.model_name === expModelFilter;
+      const deployLabel = exp.is_deployed
+        ? "deployed"
+        : String(exp.status || "").toLowerCase();
+      const statusOk =
+        expStatusFilter === "all" || deployLabel === expStatusFilter;
+      return symbolOk && modelOk && statusOk;
+    });
+  }, [experiments, expModelFilter, expStatusFilter, expSymbolFilter]);
+
+  const bestFilteredByRmse = useMemo(() => {
+    const trained = filteredExperiments.filter(
+      (e) => e.metrics?.rmse !== undefined && e.metrics?.rmse !== null,
+    );
+    if (!trained.length) return null;
+    return [...trained].sort(
+      (a, b) => Number(a.metrics.rmse) - Number(b.metrics.rmse),
+    )[0];
+  }, [filteredExperiments]);
+
+  const deployBestFiltered = async () => {
+    if (!bestFilteredByRmse) {
+      setError("No filtered experiment with RMSE is available.");
+      return;
+    }
+    if (
+      !window.confirm(
+        `Deploy best filtered model #${bestFilteredByRmse.id} (${bestFilteredByRmse.model_name})?`,
+      )
+    ) {
+      return;
+    }
+    await deployExperiment(bestFilteredByRmse.id);
+  };
 
   return (
     <div className="dash-layout">
@@ -669,6 +713,65 @@ export default function ResearcherWorkbench() {
               Deployed models: {deployed.length}
             </p>
 
+            <div className="dash-toolbar">
+              <span className="dash-kpi-pill">
+                Matched: {filteredExperiments.length}
+              </span>
+              <span className="dash-kpi-pill">
+                Best RMSE: {bestFilteredByRmse?.metrics?.rmse ?? "-"}
+              </span>
+              <select
+                className="dash-select"
+                style={{ maxWidth: 220 }}
+                value={expSymbolFilter}
+                onChange={(e) => setExpSymbolFilter(e.target.value)}
+              >
+                <option value="all">All symbols</option>
+                {Array.from(new Set(experiments.map((e) => e.symbol))).map(
+                  (symbol) => (
+                    <option key={symbol} value={symbol}>
+                      {symbol}
+                    </option>
+                  ),
+                )}
+              </select>
+              <select
+                className="dash-select"
+                style={{ maxWidth: 220 }}
+                value={expModelFilter}
+                onChange={(e) => setExpModelFilter(e.target.value)}
+              >
+                <option value="all">All models</option>
+                {Array.from(new Set(experiments.map((e) => e.model_name))).map(
+                  (modelName) => (
+                    <option key={modelName} value={modelName}>
+                      {modelName}
+                    </option>
+                  ),
+                )}
+              </select>
+              <select
+                className="dash-select"
+                style={{ maxWidth: 220 }}
+                value={expStatusFilter}
+                onChange={(e) => setExpStatusFilter(e.target.value)}
+              >
+                <option value="all">All statuses</option>
+                <option value="trained">trained</option>
+                <option value="failed">failed</option>
+                <option value="deployed">deployed</option>
+              </select>
+              <button
+                className="dash-btn success"
+                onClick={deployBestFiltered}
+                disabled={!bestFilteredByRmse || bestFilteredByRmse.is_deployed}
+              >
+                {bestFilteredByRmse?.is_deployed
+                  ? "Best already deployed"
+                  : "Deploy best filtered"}
+              </button>
+            </div>
+
             <div className="dash-table-wrap">
               <table className="dash-table">
                 <thead>
@@ -686,12 +789,16 @@ export default function ResearcherWorkbench() {
                   </tr>
                 </thead>
                 <tbody>
-                  {experiments.length === 0 ? (
+                  {filteredExperiments.length === 0 ? (
                     <tr>
-                      <td colSpan={10}>No experiments yet.</td>
+                      <td colSpan={10}>
+                        <div className="dash-empty">
+                          No experiments matched your filters.
+                        </div>
+                      </td>
                     </tr>
                   ) : (
-                    experiments.map((exp) => (
+                    filteredExperiments.map((exp) => (
                       <tr key={exp.id}>
                         <td>{exp.id}</td>
                         <td>{exp.symbol}</td>

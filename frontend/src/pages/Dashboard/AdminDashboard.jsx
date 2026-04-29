@@ -29,6 +29,18 @@ export default function AdminDashboard() {
     is_enabled: true,
     is_researcher_available: true,
   });
+  const [userSearch, setUserSearch] = useState("");
+  const [userRoleFilter, setUserRoleFilter] = useState("all");
+  const [userStatusFilter, setUserStatusFilter] = useState("all");
+  const [userPage, setUserPage] = useState(1);
+
+  const [logsSearch, setLogsSearch] = useState("");
+  const [logsPage, setLogsPage] = useState(1);
+
+  const [usageSearch, setUsageSearch] = useState("");
+  const [usagePage, setUsagePage] = useState(1);
+
+  const PAGE_SIZE = 10;
 
   const loadData = async () => {
     setLoading(true);
@@ -182,6 +194,98 @@ export default function AdminDashboard() {
       apiCalls,
     };
   }, [allUsers, cryptos, models, apiUsage]);
+
+  const filteredUsers = useMemo(() => {
+    const q = userSearch.trim().toLowerCase();
+    return allUsers.filter((u) => {
+      const matchSearch =
+        !q ||
+        String(u.id).includes(q) ||
+        String(u.email || "")
+          .toLowerCase()
+          .includes(q);
+      const matchRole = userRoleFilter === "all" || u.role === userRoleFilter;
+      const matchStatus =
+        userStatusFilter === "all" || u.status === userStatusFilter;
+      return matchSearch && matchRole && matchStatus;
+    });
+  }, [allUsers, userRoleFilter, userSearch, userStatusFilter]);
+
+  const totalUserPages = Math.max(
+    1,
+    Math.ceil(filteredUsers.length / PAGE_SIZE),
+  );
+  const pagedUsers = useMemo(() => {
+    const start = (userPage - 1) * PAGE_SIZE;
+    return filteredUsers.slice(start, start + PAGE_SIZE);
+  }, [filteredUsers, userPage]);
+
+  const filteredLogs = useMemo(() => {
+    const q = logsSearch.trim().toLowerCase();
+    const base = logs.slice(0, 200);
+    return base.filter((log) => {
+      if (!q) return true;
+      return (
+        String(log.created_at || "")
+          .toLowerCase()
+          .includes(q) ||
+        String(log.email || `user:${log.user_id || ""}`)
+          .toLowerCase()
+          .includes(q) ||
+        String(log.action || "")
+          .toLowerCase()
+          .includes(q) ||
+        String(log.details || "")
+          .toLowerCase()
+          .includes(q)
+      );
+    });
+  }, [logs, logsSearch]);
+
+  const totalLogPages = Math.max(1, Math.ceil(filteredLogs.length / PAGE_SIZE));
+  const pagedLogs = useMemo(() => {
+    const start = (logsPage - 1) * PAGE_SIZE;
+    return filteredLogs.slice(start, start + PAGE_SIZE);
+  }, [filteredLogs, logsPage]);
+
+  const filteredUsage = useMemo(() => {
+    const q = usageSearch.trim().toLowerCase();
+    return apiUsage.filter((item) => {
+      if (!q) return true;
+      return (
+        String(item.provider || "")
+          .toLowerCase()
+          .includes(q) ||
+        String(item.endpoint || "")
+          .toLowerCase()
+          .includes(q) ||
+        String(item.user_id ?? "")
+          .toLowerCase()
+          .includes(q)
+      );
+    });
+  }, [apiUsage, usageSearch]);
+
+  const totalUsagePages = Math.max(
+    1,
+    Math.ceil(filteredUsage.length / PAGE_SIZE),
+  );
+  const pagedUsage = useMemo(() => {
+    const start = (usagePage - 1) * PAGE_SIZE;
+    return filteredUsage.slice(start, start + PAGE_SIZE);
+  }, [filteredUsage, usagePage]);
+
+  useEffect(() => {
+    setUserPage(1);
+  }, [userSearch, userRoleFilter, userStatusFilter]);
+
+  useEffect(() => {
+    setLogsPage(1);
+  }, [logsSearch]);
+
+  useEffect(() => {
+    setUsagePage(1);
+  }, [usageSearch]);
 
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
@@ -348,6 +452,42 @@ export default function AdminDashboard() {
         {(activeMenu === "dashboard" || activeMenu === "users") && (
           <section className="dash-card" style={{ marginBottom: 12 }}>
             <h3>User management</h3>
+            <div className="dash-toolbar">
+              <span className="dash-kpi-pill">
+                Matched: {filteredUsers.length}
+              </span>
+              <input
+                className="dash-input"
+                style={{ maxWidth: 260 }}
+                placeholder="Search by id/email"
+                value={userSearch}
+                onChange={(e) => setUserSearch(e.target.value)}
+              />
+              <select
+                className="dash-select"
+                style={{ maxWidth: 180 }}
+                value={userRoleFilter}
+                onChange={(e) => setUserRoleFilter(e.target.value)}
+              >
+                <option value="all">All roles</option>
+                {roles.map((r) => (
+                  <option key={r} value={r}>
+                    {r}
+                  </option>
+                ))}
+              </select>
+              <select
+                className="dash-select"
+                style={{ maxWidth: 180 }}
+                value={userStatusFilter}
+                onChange={(e) => setUserStatusFilter(e.target.value)}
+              >
+                <option value="all">All statuses</option>
+                <option value="approved">approved</option>
+                <option value="pending">pending</option>
+                <option value="rejected">rejected</option>
+              </select>
+            </div>
             <div className="dash-table-wrap">
               <table className="dash-table">
                 <thead>
@@ -362,44 +502,71 @@ export default function AdminDashboard() {
                   </tr>
                 </thead>
                 <tbody>
-                  {allUsers.map((u) => (
-                    <tr key={u.id}>
-                      <td>{u.id}</td>
-                      <td>{u.email}</td>
-                      <td>{u.role}</td>
-                      <td>
-                        <span
-                          className={`dash-badge ${u.status === "approved" ? "green" : u.status === "pending" ? "yellow" : "red"}`}
-                        >
-                          {u.status}
-                        </span>
-                      </td>
-                      <td>{u.created_at}</td>
-                      <td>
-                        <select
-                          className="dash-select"
-                          value={u.role}
-                          onChange={(e) => updateRole(u.id, e.target.value)}
-                        >
-                          {roles.map((r) => (
-                            <option key={r} value={r}>
-                              {r}
-                            </option>
-                          ))}
-                        </select>
-                      </td>
-                      <td>
-                        <button
-                          className="dash-btn danger"
-                          onClick={() => deleteUser(u.id)}
-                        >
-                          Delete
-                        </button>
-                      </td>
+                  {pagedUsers.length === 0 ? (
+                    <tr>
+                      <td colSpan={7}>No users matched your filters.</td>
                     </tr>
-                  ))}
+                  ) : (
+                    pagedUsers.map((u) => (
+                      <tr key={u.id}>
+                        <td>{u.id}</td>
+                        <td>{u.email}</td>
+                        <td>{u.role}</td>
+                        <td>
+                          <span
+                            className={`dash-badge ${u.status === "approved" ? "green" : u.status === "pending" ? "yellow" : "red"}`}
+                          >
+                            {u.status}
+                          </span>
+                        </td>
+                        <td>{u.created_at}</td>
+                        <td>
+                          <select
+                            className="dash-select"
+                            value={u.role}
+                            onChange={(e) => updateRole(u.id, e.target.value)}
+                          >
+                            {roles.map((r) => (
+                              <option key={r} value={r}>
+                                {r}
+                              </option>
+                            ))}
+                          </select>
+                        </td>
+                        <td>
+                          <button
+                            className="dash-btn danger"
+                            onClick={() => deleteUser(u.id)}
+                          >
+                            Delete
+                          </button>
+                        </td>
+                      </tr>
+                    ))
+                  )}
                 </tbody>
               </table>
+            </div>
+            <div className="dash-pagination">
+              <button
+                className="dash-btn neutral"
+                onClick={() => setUserPage((p) => Math.max(1, p - 1))}
+                disabled={userPage <= 1}
+              >
+                Previous
+              </button>
+              <span className="dash-stat-label">
+                Page {userPage} of {totalUserPages}
+              </span>
+              <button
+                className="dash-btn neutral"
+                onClick={() =>
+                  setUserPage((p) => Math.min(totalUserPages, p + 1))
+                }
+                disabled={userPage >= totalUserPages}
+              >
+                Next
+              </button>
             </div>
           </section>
         )}
@@ -579,6 +746,18 @@ export default function AdminDashboard() {
         {(activeMenu === "dashboard" || activeMenu === "logs") && (
           <section className="dash-card" style={{ marginBottom: 12 }}>
             <h3>Activity logs</h3>
+            <div className="dash-toolbar">
+              <span className="dash-kpi-pill">
+                Matched: {filteredLogs.length}
+              </span>
+              <input
+                className="dash-input"
+                style={{ maxWidth: 320 }}
+                placeholder="Search logs"
+                value={logsSearch}
+                onChange={(e) => setLogsSearch(e.target.value)}
+              />
+            </div>
             <div className="dash-table-wrap">
               <table className="dash-table">
                 <thead>
@@ -590,16 +769,43 @@ export default function AdminDashboard() {
                   </tr>
                 </thead>
                 <tbody>
-                  {logs.slice(0, 50).map((log) => (
-                    <tr key={log.id}>
-                      <td>{log.created_at}</td>
-                      <td>{log.email || `user:${log.user_id}`}</td>
-                      <td>{log.action}</td>
-                      <td>{log.details}</td>
+                  {pagedLogs.length === 0 ? (
+                    <tr>
+                      <td colSpan={4}>No logs matched your search.</td>
                     </tr>
-                  ))}
+                  ) : (
+                    pagedLogs.map((log) => (
+                      <tr key={log.id}>
+                        <td>{log.created_at}</td>
+                        <td>{log.email || `user:${log.user_id}`}</td>
+                        <td>{log.action}</td>
+                        <td>{log.details}</td>
+                      </tr>
+                    ))
+                  )}
                 </tbody>
               </table>
+            </div>
+            <div className="dash-pagination">
+              <button
+                className="dash-btn neutral"
+                onClick={() => setLogsPage((p) => Math.max(1, p - 1))}
+                disabled={logsPage <= 1}
+              >
+                Previous
+              </button>
+              <span className="dash-stat-label">
+                Page {logsPage} of {totalLogPages}
+              </span>
+              <button
+                className="dash-btn neutral"
+                onClick={() =>
+                  setLogsPage((p) => Math.min(totalLogPages, p + 1))
+                }
+                disabled={logsPage >= totalLogPages}
+              >
+                Next
+              </button>
             </div>
           </section>
         )}
@@ -607,6 +813,18 @@ export default function AdminDashboard() {
         {(activeMenu === "dashboard" || activeMenu === "usage") && (
           <section className="dash-card">
             <h3>API usage monitoring</h3>
+            <div className="dash-toolbar">
+              <span className="dash-kpi-pill">
+                Matched: {filteredUsage.length}
+              </span>
+              <input
+                className="dash-input"
+                style={{ maxWidth: 320 }}
+                placeholder="Search provider/endpoint/user"
+                value={usageSearch}
+                onChange={(e) => setUsageSearch(e.target.value)}
+              />
+            </div>
             <div className="dash-table-wrap">
               <table className="dash-table">
                 <thead>
@@ -619,17 +837,46 @@ export default function AdminDashboard() {
                   </tr>
                 </thead>
                 <tbody>
-                  {apiUsage.map((item, idx) => (
-                    <tr key={`${item.provider}-${item.endpoint}-${idx}`}>
-                      <td>{item.provider}</td>
-                      <td>{item.endpoint}</td>
-                      <td>{item.request_count}</td>
-                      <td>{item.last_called_at || "-"}</td>
-                      <td>{item.user_id ?? "-"}</td>
+                  {pagedUsage.length === 0 ? (
+                    <tr>
+                      <td colSpan={5}>
+                        No API usage rows matched your search.
+                      </td>
                     </tr>
-                  ))}
+                  ) : (
+                    pagedUsage.map((item, idx) => (
+                      <tr key={`${item.provider}-${item.endpoint}-${idx}`}>
+                        <td>{item.provider}</td>
+                        <td>{item.endpoint}</td>
+                        <td>{item.request_count}</td>
+                        <td>{item.last_called_at || "-"}</td>
+                        <td>{item.user_id ?? "-"}</td>
+                      </tr>
+                    ))
+                  )}
                 </tbody>
               </table>
+            </div>
+            <div className="dash-pagination">
+              <button
+                className="dash-btn neutral"
+                onClick={() => setUsagePage((p) => Math.max(1, p - 1))}
+                disabled={usagePage <= 1}
+              >
+                Previous
+              </button>
+              <span className="dash-stat-label">
+                Page {usagePage} of {totalUsagePages}
+              </span>
+              <button
+                className="dash-btn neutral"
+                onClick={() =>
+                  setUsagePage((p) => Math.min(totalUsagePages, p + 1))
+                }
+                disabled={usagePage >= totalUsagePages}
+              >
+                Next
+              </button>
             </div>
           </section>
         )}

@@ -130,6 +130,25 @@ class ChatRequest(BaseModel):
     history: List[ChatMessage] = Field(default_factory=list)
 
 
+class AlertCreateRequest(BaseModel):
+    symbol: str
+    alert_type: str = "target"  # target | percent | sentiment
+    threshold_value: Optional[float] = None
+    direction: str = "above"  # above | below
+    sentiment_label: Optional[str] = None  # positive | neutral | negative
+    is_enabled: bool = True
+
+
+class AlertUpdateRequest(BaseModel):
+    is_enabled: bool
+
+
+class PortfolioHoldingRequest(BaseModel):
+    symbol: str
+    quantity: float = Field(gt=0)
+    avg_buy_price: float = Field(gt=0)
+
+
 def get_connection() -> sqlite3.Connection:
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
@@ -424,6 +443,37 @@ def init_auth_db() -> None:
             )
             """
         )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS alerts (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL,
+                symbol TEXT NOT NULL,
+                alert_type TEXT NOT NULL,
+                threshold_value REAL,
+                direction TEXT NOT NULL DEFAULT 'above',
+                sentiment_label TEXT,
+                is_enabled INTEGER NOT NULL DEFAULT 1,
+                created_at TEXT NOT NULL,
+                FOREIGN KEY(user_id) REFERENCES users(id)
+            )
+            """
+        )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS portfolio_holdings (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL,
+                symbol TEXT NOT NULL,
+                quantity REAL NOT NULL,
+                avg_buy_price REAL NOT NULL,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                UNIQUE(user_id, symbol),
+                FOREIGN KEY(user_id) REFERENCES users(id)
+            )
+            """
+        )
         conn.commit()
 
         MODEL_STORAGE_DIR.mkdir(parents=True, exist_ok=True)
@@ -550,6 +600,62 @@ def get_symbol_dataframe(symbol: str) -> pd.DataFrame:
     df = pd.DataFrame([dict(r) for r in rows])
     df["timestamp"] = pd.to_datetime(df["timestamp"])
     return df
+
+
+def get_latest_price_and_change(symbol: str) -> tuple[Optional[float], Optional[float]]:
+    """
+    Try to get current live price via yfinance first.
+    Falls back to the most recent stored candle if live fetch fails.
+    Returns (latest_price, pct_change_vs_prev_close).
+    """
+    live_price: Optional[float] = None
+    live_prev: Optional[float] = None
+
+    try:
+        ticker = yf.Ticker(symbol)
+        hist = ticker.history(period="2d", interval="1d")
+        if hist is not None and len(hist) >= 1:
+            closes = hist["Close"].dropna().tolist()
+            if closes:
+                live_price = float(closes[-1])
+                if len(closes) >= 2:
+                    live_prev = float(closes[-2])
+    except Exception:
+        pass
+
+    if live_price is not None:
+        if live_prev and live_prev > 0:
+            pct = ((live_price - live_prev) / live_prev) * 100.0
+        else:
+            pct = None
+        return live_price, pct
+
+    # ── fallback: use stored candles ──────────────────────────
+    conn = get_connection()
+    try:
+        rows = conn.execute(
+            """
+            SELECT close
+            FROM historical_prices
+            WHERE symbol = ?
+            ORDER BY datetime(timestamp) DESC
+            LIMIT 2
+            """,
+            (symbol,),
+        ).fetchall()
+    finally:
+        conn.close()
+
+    if not rows:
+        return None, None
+
+    latest = float(rows[0]["close"])
+    if len(rows) < 2 or rows[1]["close"] in (None, 0):
+        return latest, None
+
+    prev = float(rows[1]["close"])
+    pct = ((latest - prev) / max(prev, 1e-6)) * 100.0
+    return latest, float(pct)
 
 
 def compute_risk_profile(raw_df: pd.DataFrame) -> tuple[float, str]:
@@ -1534,6 +1640,350 @@ def user_prediction_history(current_user: sqlite3.Row = Depends(require_role("us
     return [dict(r) for r in rows]
 
 
+@router.get("/user/alerts")
+def list_user_alerts(current_user: sqlite3.Row = Depends(require_role("user", "researcher", "admin"))):
+    conn = get_connection()
+    try:
+        rows = conn.execute(
+            """
+            SELECT id, symbol, alert_type, threshold_value, direction, sentiment_label, is_enabled, created_at
+            FROM alerts
+            WHERE user_id = ?
+            ORDER BY datetime(created_at) DESC
+            """,
+            (current_user["id"],),
+        ).fetchall()
+    finally:
+        conn.close()
+
+    return [
+        {
+            **dict(r),
+            "is_enabled": bool(r["is_enabled"]),
+        }
+        for r in rows
+    ]
+
+
+@router.post("/user/alerts")
+def create_user_alert(
+    payload: AlertCreateRequest,
+    current_user: sqlite3.Row = Depends(require_role("user", "researcher", "admin")),
+):
+    symbol = normalize_symbol(payload.symbol)
+    alert_type = (payload.alert_type or "target").strip().lower()
+    if alert_type not in {"target", "percent", "sentiment"}:
+        raise HTTPException(status_code=400, detail="alert_type must be target, percent, or sentiment.")
+
+    direction = (payload.direction or "above").strip().lower()
+    if direction not in {"above", "below"}:
+        raise HTTPException(status_code=400, detail="direction must be above or below.")
+
+    threshold_value = payload.threshold_value
+    sentiment_label = (payload.sentiment_label or "").strip().lower() or None
+
+    if alert_type in {"target", "percent"} and threshold_value is None:
+        raise HTTPException(status_code=400, detail="threshold_value is required for target/percent alerts.")
+    if alert_type == "sentiment" and sentiment_label not in {"positive", "neutral", "negative"}:
+        raise HTTPException(status_code=400, detail="sentiment_label must be positive, neutral, or negative.")
+
+    if alert_type in {"target", "percent"}:
+        try:
+            threshold_value = float(threshold_value)
+        except (TypeError, ValueError):
+            raise HTTPException(status_code=400, detail="threshold_value must be numeric.")
+
+        if alert_type == "target" and threshold_value <= 0:
+            raise HTTPException(status_code=400, detail="target threshold must be greater than 0.")
+
+        if alert_type == "percent":
+            threshold_value = abs(threshold_value)
+            if threshold_value <= 0 or threshold_value > 100:
+                raise HTTPException(
+                    status_code=400,
+                    detail="percent threshold must be between 0 and 100.",
+                )
+
+    conn = get_connection()
+    try:
+        cursor = conn.execute(
+            """
+            INSERT INTO alerts (user_id, symbol, alert_type, threshold_value, direction, sentiment_label, is_enabled, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                current_user["id"],
+                symbol,
+                alert_type,
+                threshold_value,
+                direction,
+                sentiment_label,
+                int(payload.is_enabled),
+                now_utc(),
+            ),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    track_activity(current_user["id"], "user.alert.create", f"symbol={symbol}, type={alert_type}")
+    return {"message": "Alert created.", "id": cursor.lastrowid}
+
+
+@router.patch("/user/alerts/{alert_id}")
+def update_user_alert(
+    alert_id: int,
+    payload: AlertUpdateRequest,
+    current_user: sqlite3.Row = Depends(require_role("user", "researcher", "admin")),
+):
+    conn = get_connection()
+    try:
+        found = conn.execute(
+            "SELECT id FROM alerts WHERE id = ? AND user_id = ?",
+            (alert_id, current_user["id"]),
+        ).fetchone()
+        if not found:
+            raise HTTPException(status_code=404, detail="Alert not found.")
+
+        conn.execute(
+            "UPDATE alerts SET is_enabled = ? WHERE id = ? AND user_id = ?",
+            (int(payload.is_enabled), alert_id, current_user["id"]),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    return {"message": "Alert updated."}
+
+
+@router.delete("/user/alerts/{alert_id}")
+def delete_user_alert(
+    alert_id: int,
+    current_user: sqlite3.Row = Depends(require_role("user", "researcher", "admin")),
+):
+    conn = get_connection()
+    try:
+        conn.execute(
+            "DELETE FROM alerts WHERE id = ? AND user_id = ?",
+            (alert_id, current_user["id"]),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    return {"message": "Alert deleted."}
+
+
+@router.get("/user/alerts/check")
+def check_user_alerts(
+    sentiment_label: Optional[str] = None,
+    current_user: sqlite3.Row = Depends(require_role("user", "researcher", "admin")),
+):
+    normalized_sentiment = (sentiment_label or "").strip().lower() or None
+
+    conn = get_connection()
+    try:
+        rows = conn.execute(
+            """
+            SELECT id, symbol, alert_type, threshold_value, direction, sentiment_label, is_enabled, created_at
+            FROM alerts
+            WHERE user_id = ? AND is_enabled = 1
+            ORDER BY datetime(created_at) DESC
+            """,
+            (current_user["id"],),
+        ).fetchall()
+    finally:
+        conn.close()
+
+    checks = []
+    triggered = []
+
+    for r in rows:
+        alert = dict(r)
+        symbol = alert["symbol"]
+        latest_price, pct_change_24h = get_latest_price_and_change(symbol)
+        is_triggered = False
+        reason = None
+
+        if alert["alert_type"] == "target" and latest_price is not None and alert["threshold_value"] is not None:
+            threshold = float(alert["threshold_value"])
+            if alert["direction"] == "above":
+                is_triggered = latest_price >= threshold
+            else:
+                is_triggered = latest_price <= threshold
+            if is_triggered:
+                reason = f"Price {latest_price:.2f} crossed {alert['direction']} target {threshold:.2f}."
+
+        elif alert["alert_type"] == "percent" and pct_change_24h is not None and alert["threshold_value"] is not None:
+            threshold = float(alert["threshold_value"])
+            if alert["direction"] == "above":
+                is_triggered = pct_change_24h >= threshold
+            else:
+                is_triggered = pct_change_24h <= -abs(threshold)
+            if is_triggered:
+                reason = f"24h change {pct_change_24h:.2f}% triggered {alert['direction']} threshold {threshold:.2f}%."
+
+        elif alert["alert_type"] == "sentiment" and normalized_sentiment:
+            expected = (alert.get("sentiment_label") or "").strip().lower()
+            is_triggered = normalized_sentiment == expected
+            if is_triggered:
+                reason = f"Sentiment is {normalized_sentiment}, matching alert."
+
+        item = {
+            **alert,
+            "is_enabled": bool(alert["is_enabled"]),
+            "latest_price": latest_price,
+            "pct_change_24h": pct_change_24h,
+            "is_triggered": is_triggered,
+            "reason": reason,
+        }
+        checks.append(item)
+        if is_triggered:
+            triggered.append(item)
+
+    return {
+        "count": len(checks),
+        "triggered_count": len(triggered),
+        "alerts": checks,
+        "triggered": triggered,
+        "sentiment_label": normalized_sentiment,
+    }
+
+
+@router.get("/user/portfolio")
+def get_user_portfolio(current_user: sqlite3.Row = Depends(require_role("user", "researcher", "admin"))):
+    conn = get_connection()
+    try:
+        rows = conn.execute(
+            """
+            SELECT id, symbol, quantity, avg_buy_price, created_at, updated_at
+            FROM portfolio_holdings
+            WHERE user_id = ?
+            ORDER BY symbol ASC
+            """,
+            (current_user["id"],),
+        ).fetchall()
+    finally:
+        conn.close()
+
+    holdings: List[Dict[str, Any]] = []
+    total_market_value = 0.0
+    total_cost_basis = 0.0
+
+    for r in rows:
+        item = dict(r)
+        symbol = item["symbol"]
+        quantity = float(item["quantity"])
+        avg_buy = float(item["avg_buy_price"])
+
+        latest_price, _ = get_latest_price_and_change(symbol)
+        market_price = float(latest_price) if latest_price is not None else avg_buy
+
+        cost_basis = quantity * avg_buy
+        market_value = quantity * market_price
+        unrealized_pl = market_value - cost_basis
+        unrealized_pl_pct = (unrealized_pl / max(cost_basis, 1e-6)) * 100.0
+
+        risk_score = None
+        risk_level = None
+        try:
+            raw_df = get_symbol_dataframe(symbol)
+            rs, rl = compute_risk_profile(raw_df)
+            risk_score = rs
+            risk_level = rl
+        except Exception:
+            pass
+
+        total_market_value += market_value
+        total_cost_basis += cost_basis
+
+        holdings.append(
+            {
+                **item,
+                "market_price": market_price,
+                "market_value": market_value,
+                "cost_basis": cost_basis,
+                "unrealized_pl": unrealized_pl,
+                "unrealized_pl_pct": unrealized_pl_pct,
+                "risk_score": risk_score,
+                "risk_level": risk_level,
+            }
+        )
+
+    for h in holdings:
+        h["allocation_pct"] = (h["market_value"] / max(total_market_value, 1e-6)) * 100.0 if total_market_value > 0 else 0.0
+
+    return {
+        "holdings": holdings,
+        "summary": {
+            "total_market_value": total_market_value,
+            "total_cost_basis": total_cost_basis,
+            "total_unrealized_pl": total_market_value - total_cost_basis,
+            "total_unrealized_pl_pct": ((total_market_value - total_cost_basis) / max(total_cost_basis, 1e-6)) * 100.0
+            if total_cost_basis > 0
+            else 0.0,
+        },
+    }
+
+
+@router.post("/user/portfolio/holdings")
+def upsert_user_holding(
+    payload: PortfolioHoldingRequest,
+    current_user: sqlite3.Row = Depends(require_role("user", "researcher", "admin")),
+):
+    symbol = normalize_symbol(payload.symbol)
+    quantity = float(payload.quantity)
+    avg_buy_price = float(payload.avg_buy_price)
+
+    conn = get_connection()
+    try:
+        existing = conn.execute(
+            "SELECT id FROM portfolio_holdings WHERE user_id = ? AND symbol = ?",
+            (current_user["id"], symbol),
+        ).fetchone()
+        if existing:
+            conn.execute(
+                """
+                UPDATE portfolio_holdings
+                SET quantity = ?, avg_buy_price = ?, updated_at = ?
+                WHERE user_id = ? AND symbol = ?
+                """,
+                (quantity, avg_buy_price, now_utc(), current_user["id"], symbol),
+            )
+        else:
+            conn.execute(
+                """
+                INSERT INTO portfolio_holdings (user_id, symbol, quantity, avg_buy_price, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?)
+                """,
+                (current_user["id"], symbol, quantity, avg_buy_price, now_utc(), now_utc()),
+            )
+        conn.commit()
+    finally:
+        conn.close()
+
+    return {"message": "Holding saved.", "symbol": symbol}
+
+
+@router.delete("/user/portfolio/holdings/{symbol}")
+def delete_user_holding(
+    symbol: str,
+    current_user: sqlite3.Row = Depends(require_role("user", "researcher", "admin")),
+):
+    normalized = normalize_symbol(symbol)
+    conn = get_connection()
+    try:
+        conn.execute(
+            "DELETE FROM portfolio_holdings WHERE user_id = ? AND symbol = ?",
+            (current_user["id"], normalized),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    return {"message": "Holding removed.", "symbol": normalized}
+
+
 @router.get("/prediction-vs-actual")
 def prediction_vs_actual(
     symbol: str = "BTC-USD",
@@ -1636,6 +2086,205 @@ def prediction_vs_actual(
         },
         "points": points,
     }
+
+@router.get("/user/backtest")
+def user_backtest(
+    symbol: str = "BTC-USD",
+    model: str = "random_forest",
+    initial_capital: float = 10000.0,
+    test_size: float = 0.2,
+    current_user: sqlite3.Row = Depends(require_role("user", "researcher", "admin")),
+):
+    """
+    Walk-forward backtest using the deployed (or trained) model.
+    Strategy: buy when model predicts next close > current close, hold cash otherwise.
+    Returns equity curve, trade log, and summary metrics.
+    """
+    symbol = normalize_symbol(symbol)
+    model = model.strip().lower()
+    initial_capital = max(100.0, min(float(initial_capital), 10_000_000.0))
+    test_size = max(0.05, min(float(test_size), 0.5))
+
+    raw_df = get_symbol_dataframe(symbol)
+    feature_df = build_features(raw_df)
+    if len(feature_df) < 60:
+        raise HTTPException(status_code=400, detail="Not enough historical data for backtesting.")
+
+    feature_cols = ["open", "high", "low", "close", "volume", "ma_fast", "ma_slow", "rsi", "macd", "volatility"]
+
+    # ── try to load deployed model ───────────────────────────────────────────
+    conn = get_connection()
+    deployed = None
+    try:
+        deployed = conn.execute(
+            """
+            SELECT model_name, artifact_path FROM experiments
+            WHERE symbol = ? AND is_deployed = 1 AND model_name = ?
+            ORDER BY datetime(created_at) DESC LIMIT 1
+            """,
+            (symbol, model),
+        ).fetchone()
+        if not deployed:
+            deployed = conn.execute(
+                """
+                SELECT model_name, artifact_path FROM experiments
+                WHERE symbol = ? AND is_deployed = 1
+                ORDER BY datetime(created_at) DESC LIMIT 1
+                """,
+                (symbol,),
+            ).fetchone()
+    finally:
+        conn.close()
+
+    model_obj = None
+    model_used = "naive_baseline"
+    if deployed:
+        try:
+            artifact = joblib.load(deployed["artifact_path"])
+            model_obj = artifact.get("model")
+            loaded_cols = artifact.get("feature_cols")
+            if model_obj is not None and loaded_cols:
+                feature_cols = loaded_cols
+                model_used = deployed["model_name"]
+        except Exception:
+            model_obj = None
+
+    # ── if no deployed model, train a quick random forest on train split ────
+    if model_obj is None:
+        feature_df_with_target = feature_df.copy()
+        feature_df_with_target["target"] = feature_df_with_target["close"].shift(-1)
+        feature_df_with_target = feature_df_with_target.dropna().reset_index(drop=True)
+
+        split = int(len(feature_df_with_target) * (1 - test_size))
+        X_train = feature_df_with_target.iloc[:split][feature_cols].values
+        y_train = feature_df_with_target.iloc[:split]["target"].values
+        model_obj = RandomForestRegressor(n_estimators=100, random_state=42)
+        model_obj.fit(X_train, y_train)
+        model_used = "random_forest_inline"
+
+    # ── walk-forward test ────────────────────────────────────────────────────
+    test_start = int(len(feature_df) * (1 - test_size))
+    test_df = feature_df.iloc[test_start:].reset_index(drop=True)
+    if len(test_df) < 5:
+        raise HTTPException(status_code=400, detail="Test window too small.")
+
+    cash = initial_capital
+    shares = 0.0
+    portfolio_value = initial_capital
+
+    equity_curve: List[Dict[str, Any]] = []
+    trades: List[Dict[str, Any]] = []
+
+    for i in range(len(test_df) - 1):
+        row = test_df.iloc[i]
+        next_row = test_df.iloc[i + 1]
+        price_now = float(row["close"])
+        price_next = float(next_row["close"])
+
+        try:
+            x = row[feature_cols].values.reshape(1, -1)
+            predicted_next = float(model_obj.predict(x)[0])
+        except Exception:
+            predicted_next = price_now
+
+        signal = "buy" if predicted_next > price_now else "sell"
+
+        # Execute at next open (approximated as next close for simplicity)
+        if signal == "buy" and cash > 0 and price_next > 0:
+            shares_bought = cash / price_next
+            shares += shares_bought
+            cost = shares_bought * price_next
+            cash -= cost
+            trades.append({
+                "date": pd.to_datetime(next_row["timestamp"]).strftime("%Y-%m-%d"),
+                "action": "buy",
+                "price": round(price_next, 2),
+                "shares": round(shares_bought, 6),
+                "value": round(cost, 2),
+            })
+        elif signal == "sell" and shares > 0 and price_next > 0:
+            proceeds = shares * price_next
+            cash += proceeds
+            trades.append({
+                "date": pd.to_datetime(next_row["timestamp"]).strftime("%Y-%m-%d"),
+                "action": "sell",
+                "price": round(price_next, 2),
+                "shares": round(shares, 6),
+                "value": round(proceeds, 2),
+            })
+            shares = 0.0
+
+        portfolio_value = cash + shares * price_next
+        equity_curve.append({
+            "date": pd.to_datetime(next_row["timestamp"]).strftime("%Y-%m-%d"),
+            "portfolio_value": round(portfolio_value, 2),
+            "price": round(price_next, 2),
+            "signal": signal,
+        })
+
+    # ── buy & hold baseline ──────────────────────────────────────────────────
+    bah_entry = float(test_df.iloc[0]["close"])
+    bah_exit = float(test_df.iloc[-1]["close"])
+    bah_shares = initial_capital / bah_entry if bah_entry > 0 else 0
+    bah_final = bah_shares * bah_exit
+    bah_return_pct = ((bah_final - initial_capital) / initial_capital) * 100
+
+    final_value = cash + shares * float(test_df.iloc[-1]["close"])
+    total_return_pct = ((final_value - initial_capital) / initial_capital) * 100
+
+    # ── Sharpe ratio (annualised) ────────────────────────────────────────────
+    pv_series = np.array([p["portfolio_value"] for p in equity_curve], dtype=float)
+    if len(pv_series) > 1:
+        daily_returns = np.diff(pv_series) / np.where(pv_series[:-1] > 0, pv_series[:-1], 1)
+        sharpe = float(
+            (np.mean(daily_returns) / (np.std(daily_returns) + 1e-9)) * math.sqrt(252)
+        )
+    else:
+        sharpe = 0.0
+
+    # ── max drawdown ─────────────────────────────────────────────────────────
+    peak = pv_series[0] if len(pv_series) else initial_capital
+    max_dd = 0.0
+    for v in pv_series:
+        if v > peak:
+            peak = v
+        dd = (peak - v) / peak if peak > 0 else 0.0
+        if dd > max_dd:
+            max_dd = dd
+
+    # ── win rate ─────────────────────────────────────────────────────────────
+    buys = [t for t in trades if t["action"] == "buy"]
+    sells = [t for t in trades if t["action"] == "sell"]
+    wins = sum(1 for s in sells if s["value"] > (buys[sells.index(s)]["value"] if sells.index(s) < len(buys) else 0))
+    win_rate = (wins / len(sells) * 100) if sells else 0.0
+
+    # add bah line to equity_curve for chart
+    bah_per_day = [
+        {
+            "date": p["date"],
+            "bah_value": round(bah_shares * p["price"], 2),
+        }
+        for p in equity_curve
+    ]
+
+    return {
+        "symbol": symbol,
+        "model": model_used,
+        "initial_capital": initial_capital,
+        "final_value": round(final_value, 2),
+        "total_return_pct": round(total_return_pct, 2),
+        "bah_return_pct": round(bah_return_pct, 2),
+        "bah_final_value": round(bah_final, 2),
+        "sharpe_ratio": round(sharpe, 3),
+        "max_drawdown_pct": round(max_dd * 100, 2),
+        "win_rate_pct": round(win_rate, 2),
+        "total_trades": len(trades),
+        "test_days": len(equity_curve),
+        "equity_curve": equity_curve,
+        "bah_curve": bah_per_day,
+        "trades": trades[-50:],  # last 50 trades to keep payload light
+    }
+
 
 @router.post("/user/chat")
 def user_chat(

@@ -203,6 +203,42 @@ export default function UserDashboard() {
   const [sentimentError, setSentimentError] = useState("");
   const [sentimentRefreshedAt, setSentimentRefreshedAt] = useState(null);
 
+  const [newsItems, setNewsItems] = useState([]);
+  const [newsLoading, setNewsLoading] = useState(false);
+  const [newsError, setNewsError] = useState("");
+  const [newsRefreshedAt, setNewsRefreshedAt] = useState(null);
+
+  const [historySymbolFilter, setHistorySymbolFilter] = useState("all");
+  const [historyFromDate, setHistoryFromDate] = useState("");
+  const [historyToDate, setHistoryToDate] = useState("");
+
+  const [alerts, setAlerts] = useState([]);
+  const [alertsLoading, setAlertsLoading] = useState(false);
+  const [alertsCheck, setAlertsCheck] = useState(null);
+  const [alertsForm, setAlertsForm] = useState({
+    symbol: "BTC-USD",
+    alert_type: "target",
+    threshold_value: "",
+    direction: "above",
+    sentiment_label: "positive",
+  });
+
+  const [portfolioData, setPortfolioData] = useState({
+    holdings: [],
+    summary: {
+      total_market_value: 0,
+      total_cost_basis: 0,
+      total_unrealized_pl: 0,
+      total_unrealized_pl_pct: 0,
+    },
+  });
+  const [portfolioLoading, setPortfolioLoading] = useState(false);
+  const [portfolioForm, setPortfolioForm] = useState({
+    symbol: "BTC-USD",
+    quantity: "",
+    avg_buy_price: "",
+  });
+
   const [twoFASetup, setTwoFASetup] = useState(null); // expected: { secret, otpauth_uri }
   const [qrDataUrl, setQrDataUrl] = useState("");
 
@@ -288,6 +324,10 @@ export default function UserDashboard() {
     { key: "predict", label: "Predict Price", icon: "🔮" },
     { key: "live", label: "Live Chart", icon: "📈" },
     { key: "sentiment", label: "Sentiment", icon: "🧠" },
+    { key: "alerts", label: "Smart Alerts", icon: "🚨" },
+    { key: "portfolio", label: "Portfolio", icon: "💼" },
+    { key: "backtest", label: "Backtest", icon: "⚗️" },
+    { key: "news", label: "News", icon: "📰" },
     { key: "history", label: "History", icon: "🕑" },
     { key: "profile", label: "Profile", icon: "👤" },
     { key: "security", label: "Security", icon: "🔒" },
@@ -309,6 +349,8 @@ export default function UserDashboard() {
         ...prev,
         symbol: first,
       }));
+      setAlertsForm((prev) => ({ ...prev, symbol: first }));
+      setPortfolioForm((prev) => ({ ...prev, symbol: first }));
     } catch (err) {
       setError(err.response?.data?.detail || "Failed to load dashboard data.");
     }
@@ -391,8 +433,32 @@ export default function UserDashboard() {
     setSelectedQuickQueries([]);
   }, [selectedCryptoMeta.symbol]);
 
+  const filteredHistory = useMemo(() => {
+    const fromMs = historyFromDate
+      ? new Date(`${historyFromDate}T00:00:00`).getTime()
+      : null;
+    const toMs = historyToDate
+      ? new Date(`${historyToDate}T23:59:59`).getTime()
+      : null;
+
+    return history.filter((item) => {
+      if (
+        historySymbolFilter !== "all" &&
+        item.symbol !== historySymbolFilter
+      ) {
+        return false;
+      }
+
+      const createdMs = new Date(item.created_at).getTime();
+      if (fromMs && !Number.isNaN(createdMs) && createdMs < fromMs)
+        return false;
+      if (toMs && !Number.isNaN(createdMs) && createdMs > toMs) return false;
+      return true;
+    });
+  }, [history, historyFromDate, historySymbolFilter, historyToDate]);
+
   const historyChartData = useMemo(() => {
-    const points = [...history].reverse().slice(-20);
+    const points = [...filteredHistory].reverse().slice(-20);
     return {
       labels: points.map((p) => {
         const d = new Date(p.created_at);
@@ -411,7 +477,51 @@ export default function UserDashboard() {
         },
       ],
     };
-  }, [history]);
+  }, [filteredHistory]);
+
+  const exportHistoryCsv = () => {
+    const rows = filteredHistory;
+    if (!rows.length) {
+      setError("No history rows to export.");
+      return;
+    }
+
+    const headers = [
+      "date",
+      "symbol",
+      "horizon",
+      "predicted_price",
+      "trend",
+      "confidence",
+      "explanation_mode",
+    ];
+
+    const esc = (v) => `"${String(v ?? "").replaceAll('"', '""')}"`;
+    const csv = [
+      headers.join(","),
+      ...rows.map((r) =>
+        [
+          r.created_at,
+          r.symbol,
+          r.horizon,
+          Number(r.predicted_price || 0).toFixed(2),
+          r.trend,
+          Number(r.confidence || 0).toFixed(1),
+          r.explanation_mode,
+        ]
+          .map(esc)
+          .join(","),
+      ),
+    ].join("\n");
+
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `prediction_history_${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
 
   const liveChartData = useMemo(() => {
     return {
@@ -484,6 +594,171 @@ export default function UserDashboard() {
     }
   };
 
+  const fetchCoinNews = async () => {
+    setNewsLoading(true);
+    setNewsError("");
+    try {
+      const res = await api.get("/api/coin-news", {
+        params: {
+          coin: form.symbol,
+        },
+      });
+      setNewsItems(Array.isArray(res.data) ? res.data : []);
+      setNewsRefreshedAt(new Date());
+    } catch (err) {
+      setNewsItems([]);
+      setNewsError(err.response?.data?.detail || "Failed to load coin news.");
+    } finally {
+      setNewsLoading(false);
+    }
+  };
+
+  const loadAlerts = async () => {
+    setAlertsLoading(true);
+    try {
+      const res = await api.get("/user/alerts");
+      setAlerts(Array.isArray(res.data) ? res.data : []);
+    } catch (err) {
+      setError(err.response?.data?.detail || "Failed to load alerts.");
+    } finally {
+      setAlertsLoading(false);
+    }
+  };
+
+  const checkAlerts = async () => {
+    try {
+      const label = sentimentData?.overall?.label;
+      const res = await api.get("/user/alerts/check", {
+        params: label ? { sentiment_label: label } : {},
+      });
+      setAlertsCheck(res.data || null);
+    } catch (err) {
+      setAlertsCheck(null);
+      setError(err.response?.data?.detail || "Failed to evaluate alerts.");
+    }
+  };
+
+  const createAlert = async (e) => {
+    e.preventDefault();
+    setError("");
+    setSuccess("");
+    try {
+      const payload = {
+        symbol: alertsForm.symbol,
+        alert_type: alertsForm.alert_type,
+        direction: alertsForm.direction,
+        is_enabled: true,
+      };
+      if (alertsForm.alert_type === "sentiment") {
+        payload.sentiment_label = alertsForm.sentiment_label;
+      } else {
+        const thresholdNumber = Number(alertsForm.threshold_value);
+        if (Number.isNaN(thresholdNumber)) {
+          setError("Please enter a valid numeric threshold.");
+          return;
+        }
+        if (alertsForm.alert_type === "target" && thresholdNumber <= 0) {
+          setError("Target price must be greater than 0.");
+          return;
+        }
+        if (
+          alertsForm.alert_type === "percent" &&
+          (Math.abs(thresholdNumber) <= 0 || Math.abs(thresholdNumber) > 100)
+        ) {
+          setError("Percent threshold must be between 0 and 100.");
+          return;
+        }
+        payload.threshold_value =
+          alertsForm.alert_type === "percent"
+            ? Math.abs(thresholdNumber)
+            : thresholdNumber;
+      }
+
+      await api.post("/user/alerts", payload);
+      setSuccess("Smart alert created.");
+      setAlertsForm((prev) => ({ ...prev, threshold_value: "" }));
+      await loadAlerts();
+      await checkAlerts();
+    } catch (err) {
+      setError(err.response?.data?.detail || "Failed to create alert.");
+    }
+  };
+
+  const toggleAlert = async (alertId, isEnabled) => {
+    try {
+      await api.patch(`/user/alerts/${alertId}`, { is_enabled: !isEnabled });
+      await loadAlerts();
+      await checkAlerts();
+    } catch (err) {
+      setError(err.response?.data?.detail || "Failed to update alert.");
+    }
+  };
+
+  const removeAlert = async (alertId) => {
+    try {
+      await api.delete(`/user/alerts/${alertId}`);
+      await loadAlerts();
+      await checkAlerts();
+    } catch (err) {
+      setError(err.response?.data?.detail || "Failed to delete alert.");
+    }
+  };
+
+  const loadPortfolio = async () => {
+    setPortfolioLoading(true);
+    try {
+      const res = await api.get("/user/portfolio");
+      setPortfolioData(
+        res.data || {
+          holdings: [],
+          summary: {
+            total_market_value: 0,
+            total_cost_basis: 0,
+            total_unrealized_pl: 0,
+            total_unrealized_pl_pct: 0,
+          },
+        },
+      );
+    } catch (err) {
+      setError(err.response?.data?.detail || "Failed to load portfolio.");
+    } finally {
+      setPortfolioLoading(false);
+    }
+  };
+
+  const saveHolding = async (e) => {
+    e.preventDefault();
+    setError("");
+    setSuccess("");
+    try {
+      await api.post("/user/portfolio/holdings", {
+        symbol: portfolioForm.symbol,
+        quantity: Number(portfolioForm.quantity),
+        avg_buy_price: Number(portfolioForm.avg_buy_price),
+      });
+      setSuccess("Holding saved.");
+      setPortfolioForm((prev) => ({
+        ...prev,
+        quantity: "",
+        avg_buy_price: "",
+      }));
+      await loadPortfolio();
+    } catch (err) {
+      setError(err.response?.data?.detail || "Failed to save holding.");
+    }
+  };
+
+  const deleteHolding = async (symbol) => {
+    try {
+      await api.delete(
+        `/user/portfolio/holdings/${encodeURIComponent(symbol)}`,
+      );
+      await loadPortfolio();
+    } catch (err) {
+      setError(err.response?.data?.detail || "Failed to remove holding.");
+    }
+  };
+
   useEffect(() => {
     if (activeMenu !== "dashboard" && activeMenu !== "live") return;
 
@@ -496,6 +771,22 @@ export default function UserDashboard() {
     if (activeMenu !== "dashboard" && activeMenu !== "sentiment") return;
     fetchSentiment();
   }, [activeMenu, form.symbol]);
+
+  useEffect(() => {
+    if (activeMenu !== "dashboard" && activeMenu !== "news") return;
+    fetchCoinNews();
+  }, [activeMenu, form.symbol]);
+
+  useEffect(() => {
+    if (activeMenu !== "alerts") return;
+    loadAlerts();
+    checkAlerts();
+  }, [activeMenu]);
+
+  useEffect(() => {
+    if (activeMenu !== "portfolio") return;
+    loadPortfolio();
+  }, [activeMenu]);
 
   const submitPrediction = async (e) => {
     e.preventDefault();
@@ -561,6 +852,18 @@ export default function UserDashboard() {
     }
   };
 
+  const logoutAllDevices = async () => {
+    setError("");
+    setSuccess("");
+    try {
+      await api.post("/auth/logout-all");
+      setSuccess("All sessions were logged out. Please sign in again.");
+      await logout();
+    } catch (err) {
+      setError(err.response?.data?.detail || "Failed to log out all devices.");
+    }
+  };
+
   const handleGenerate2FA = async () => {
     setError("");
     setSuccess("");
@@ -599,6 +902,69 @@ export default function UserDashboard() {
   const [comparison, setComparison] = useState(null);
   const [comparisonLoading, setComparisonLoading] = useState(false);
   const [comparisonError, setComparisonError] = useState("");
+
+  const [backtestResult, setBacktestResult] = useState(null);
+  const [backtestLoading, setBacktestLoading] = useState(false);
+  const [backtestError, setBacktestError] = useState("");
+  const [backtestForm, setBacktestForm] = useState({
+    symbol: "BTC-USD",
+    model: "random_forest",
+    initial_capital: 10000,
+    test_size: 0.2,
+  });
+
+  const runBacktest = async (e) => {
+    e.preventDefault();
+    setBacktestLoading(true);
+    setBacktestError("");
+    setBacktestResult(null);
+    try {
+      const res = await api.get("/user/backtest", {
+        params: {
+          symbol: backtestForm.symbol,
+          model: backtestForm.model,
+          initial_capital: Number(backtestForm.initial_capital),
+          test_size: Number(backtestForm.test_size),
+        },
+      });
+      setBacktestResult(res.data || null);
+    } catch (err) {
+      setBacktestError(err.response?.data?.detail || "Backtest failed.");
+    } finally {
+      setBacktestLoading(false);
+    }
+  };
+
+  const backtestChartData = useMemo(() => {
+    if (!backtestResult?.equity_curve?.length) return null;
+    const labels = backtestResult.equity_curve.map((p) => p.date);
+    return {
+      labels,
+      datasets: [
+        {
+          label: "Strategy",
+          data: backtestResult.equity_curve.map((p) => p.portfolio_value),
+          borderColor: "#6366f1",
+          backgroundColor: "rgba(99,102,241,0.15)",
+          tension: 0.3,
+          fill: true,
+          pointRadius: 0,
+          borderWidth: 2,
+        },
+        {
+          label: "Buy & Hold",
+          data: backtestResult.bah_curve.map((p) => p.bah_value),
+          borderColor: "#f59e0b",
+          backgroundColor: "rgba(245,158,11,0.08)",
+          tension: 0.3,
+          fill: false,
+          pointRadius: 0,
+          borderWidth: 2,
+          borderDash: [5, 4],
+        },
+      ],
+    };
+  }, [backtestResult]);
 
   const loadComparison = async (symbol) => {
     setComparisonLoading(true);
@@ -1177,10 +1543,123 @@ export default function UserDashboard() {
           </section>
         )}
 
+        {(activeMenu === "dashboard" || activeMenu === "news") && (
+          <section className="dash-card" style={{ marginBottom: 12 }}>
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                marginBottom: 10,
+              }}
+            >
+              <div>
+                <h3 style={{ margin: 0 }}>
+                  {selectedCryptoMeta.symbol} News Feed
+                </h3>
+                <p className="dash-stat-label" style={{ margin: "2px 0 0" }}>
+                  Last refreshed:{" "}
+                  {newsRefreshedAt
+                    ? newsRefreshedAt.toLocaleTimeString()
+                    : "Not yet"}
+                </p>
+              </div>
+              <button
+                className="dash-btn neutral"
+                onClick={fetchCoinNews}
+                disabled={newsLoading}
+              >
+                {newsLoading ? "Refreshing..." : "Refresh news"}
+              </button>
+            </div>
+
+            {newsError && <div className="dash-alert error">{newsError}</div>}
+
+            {newsLoading && newsItems.length === 0 ? (
+              <div style={{ display: "grid", gap: 8 }}>
+                <div className="dash-skeleton" style={{ height: 52 }} />
+                <div className="dash-skeleton" style={{ height: 52 }} />
+                <div className="dash-skeleton" style={{ height: 52 }} />
+              </div>
+            ) : newsItems.length === 0 ? (
+              <div className="dash-empty">
+                No news items available right now.
+              </div>
+            ) : (
+              <div style={{ display: "grid", gap: 8 }}>
+                {newsItems.slice(0, 10).map((item, idx) => (
+                  <a
+                    key={`${item.title}-${idx}`}
+                    href={item.url || "#"}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="dash-news-link"
+                  >
+                    <strong style={{ color: "#0f172a" }}>
+                      {item.title || "Untitled"}
+                    </strong>
+                    <div className="dash-stat-label" style={{ marginTop: 4 }}>
+                      Source: {item.source || "unknown"}
+                    </div>
+                  </a>
+                ))}
+              </div>
+            )}
+          </section>
+        )}
+
         {(activeMenu === "dashboard" || activeMenu === "history") && (
           <section className="dash-card" style={{ marginBottom: 12 }}>
             <h3>Historical Predictions</h3>
-            {history.length > 0 ? (
+            <div className="dash-toolbar">
+              <span className="dash-kpi-pill">
+                Matched: {filteredHistory.length}
+              </span>
+              <select
+                className="dash-select"
+                style={{ maxWidth: 220 }}
+                value={historySymbolFilter}
+                onChange={(e) => setHistorySymbolFilter(e.target.value)}
+              >
+                <option value="all">All symbols</option>
+                {Array.from(new Set(history.map((h) => h.symbol))).map(
+                  (symbol) => (
+                    <option key={symbol} value={symbol}>
+                      {symbol}
+                    </option>
+                  ),
+                )}
+              </select>
+              <input
+                className="dash-input"
+                style={{ maxWidth: 190 }}
+                type="date"
+                value={historyFromDate}
+                onChange={(e) => setHistoryFromDate(e.target.value)}
+              />
+              <input
+                className="dash-input"
+                style={{ maxWidth: 190 }}
+                type="date"
+                value={historyToDate}
+                onChange={(e) => setHistoryToDate(e.target.value)}
+              />
+              <button className="dash-btn neutral" onClick={exportHistoryCsv}>
+                Export CSV
+              </button>
+              <button
+                className="dash-btn neutral"
+                onClick={() => {
+                  setHistorySymbolFilter("all");
+                  setHistoryFromDate("");
+                  setHistoryToDate("");
+                }}
+              >
+                Reset filters
+              </button>
+            </div>
+
+            {filteredHistory.length > 0 ? (
               <div style={{ maxWidth: 900, marginBottom: 12 }}>
                 <Line
                   data={historyChartData}
@@ -1191,7 +1670,9 @@ export default function UserDashboard() {
                 />
               </div>
             ) : (
-              <p>No prediction history yet.</p>
+              <div className="dash-empty">
+                No prediction history for the selected filter.
+              </div>
             )}
 
             <div className="dash-table-wrap">
@@ -1208,12 +1689,12 @@ export default function UserDashboard() {
                   </tr>
                 </thead>
                 <tbody>
-                  {history.length === 0 ? (
+                  {filteredHistory.length === 0 ? (
                     <tr>
                       <td colSpan={7}>No history records.</td>
                     </tr>
                   ) : (
-                    history.map((item) => (
+                    filteredHistory.map((item) => (
                       <tr key={item.id}>
                         <td>{item.created_at}</td>
                         <td>{item.symbol}</td>
@@ -1228,6 +1709,689 @@ export default function UserDashboard() {
                 </tbody>
               </table>
             </div>
+          </section>
+        )}
+
+        {activeMenu === "alerts" && (
+          <section className="dash-card" style={{ marginBottom: 12 }}>
+            <h3>Smart Price Alerts</h3>
+            <form onSubmit={createAlert}>
+              <div className="dash-form-grid">
+                <div className="dash-form-row">
+                  <label>Symbol</label>
+                  <select
+                    className="dash-select"
+                    value={alertsForm.symbol}
+                    onChange={(e) =>
+                      setAlertsForm((p) => ({ ...p, symbol: e.target.value }))
+                    }
+                  >
+                    {config.cryptocurrencies.map((crypto) => (
+                      <option key={crypto.symbol} value={crypto.symbol}>
+                        {crypto.name} ({crypto.symbol})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="dash-form-row">
+                  <label>Alert Type</label>
+                  <select
+                    className="dash-select"
+                    value={alertsForm.alert_type}
+                    onChange={(e) =>
+                      setAlertsForm((p) => ({
+                        ...p,
+                        alert_type: e.target.value,
+                      }))
+                    }
+                  >
+                    <option value="target">Target price</option>
+                    <option value="percent">% change (24h)</option>
+                    <option value="sentiment">Sentiment-triggered</option>
+                  </select>
+                </div>
+
+                {alertsForm.alert_type === "sentiment" ? (
+                  <div className="dash-form-row">
+                    <label>Sentiment trigger</label>
+                    <select
+                      className="dash-select"
+                      value={alertsForm.sentiment_label}
+                      onChange={(e) =>
+                        setAlertsForm((p) => ({
+                          ...p,
+                          sentiment_label: e.target.value,
+                        }))
+                      }
+                    >
+                      <option value="positive">positive</option>
+                      <option value="neutral">neutral</option>
+                      <option value="negative">negative</option>
+                    </select>
+                  </div>
+                ) : (
+                  <>
+                    <div className="dash-form-row">
+                      <label>
+                        {alertsForm.alert_type === "target"
+                          ? "Target price"
+                          : "Percent threshold (%)"}
+                      </label>
+                      <input
+                        className="dash-input"
+                        type="number"
+                        step="0.01"
+                        min={
+                          alertsForm.alert_type === "percent" ? "0.01" : "0.01"
+                        }
+                        max={
+                          alertsForm.alert_type === "percent"
+                            ? "100"
+                            : undefined
+                        }
+                        placeholder={
+                          alertsForm.alert_type === "percent"
+                            ? "e.g. 3.5 for 3.5%"
+                            : "e.g. 77000"
+                        }
+                        value={alertsForm.threshold_value}
+                        onChange={(e) =>
+                          setAlertsForm((p) => ({
+                            ...p,
+                            threshold_value: e.target.value,
+                          }))
+                        }
+                        required
+                      />
+                      {alertsForm.alert_type === "percent" && (
+                        <small
+                          style={{
+                            display: "block",
+                            marginTop: 6,
+                            color: "#64748b",
+                            fontSize: 12,
+                          }}
+                        >
+                          Use percent change values like 1.5, 3, 5 (not price
+                          values like 76000).
+                        </small>
+                      )}
+                    </div>
+                    <div className="dash-form-row">
+                      <label>Direction</label>
+                      <select
+                        className="dash-select"
+                        value={alertsForm.direction}
+                        onChange={(e) =>
+                          setAlertsForm((p) => ({
+                            ...p,
+                            direction: e.target.value,
+                          }))
+                        }
+                      >
+                        <option value="above">above</option>
+                        <option value="below">below</option>
+                      </select>
+                    </div>
+                  </>
+                )}
+              </div>
+
+              <div className="dash-actions" style={{ marginTop: 10 }}>
+                <button className="dash-btn primary" type="submit">
+                  Create alert
+                </button>
+                <button
+                  className="dash-btn neutral"
+                  type="button"
+                  onClick={checkAlerts}
+                >
+                  Check alerts now
+                </button>
+              </div>
+            </form>
+
+            {alertsCheck && (
+              <p className="dash-stat-label" style={{ marginTop: 10 }}>
+                Triggered alerts: {alertsCheck.triggered_count || 0} /{" "}
+                {alertsCheck.count || 0}
+              </p>
+            )}
+
+            <div className="dash-table-wrap" style={{ marginTop: 10 }}>
+              <table className="dash-table">
+                <thead>
+                  <tr>
+                    <th>Symbol</th>
+                    <th>Type</th>
+                    <th>Rule</th>
+                    <th>Status</th>
+                    <th>Triggered</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {alertsLoading ? (
+                    <tr>
+                      <td colSpan={6}>Loading alerts...</td>
+                    </tr>
+                  ) : alerts.length === 0 ? (
+                    <tr>
+                      <td colSpan={6}>No alerts configured yet.</td>
+                    </tr>
+                  ) : (
+                    alerts.map((a) => {
+                      const checked = (alertsCheck?.alerts || []).find(
+                        (x) => x.id === a.id,
+                      );
+                      return (
+                        <tr key={a.id}>
+                          <td>{a.symbol}</td>
+                          <td>{a.alert_type}</td>
+                          <td>
+                            {a.alert_type === "sentiment"
+                              ? `sentiment = ${a.sentiment_label}`
+                              : a.alert_type === "percent"
+                                ? `${a.direction} ${Number(a.threshold_value || 0).toFixed(2)}%`
+                                : `${a.direction} $${Number(a.threshold_value || 0).toFixed(2)}`}
+                          </td>
+                          <td>
+                            <span
+                              className={`dash-badge ${a.is_enabled ? "green" : "red"}`}
+                            >
+                              {a.is_enabled ? "enabled" : "disabled"}
+                            </span>
+                          </td>
+                          <td>
+                            {checked?.is_triggered ? (
+                              <span className="dash-badge yellow">yes</span>
+                            ) : (
+                              <span className="dash-badge blue">no</span>
+                            )}
+                          </td>
+                          <td>
+                            <div className="dash-actions">
+                              <button
+                                className="dash-btn neutral"
+                                onClick={() => toggleAlert(a.id, a.is_enabled)}
+                              >
+                                {a.is_enabled ? "Disable" : "Enable"}
+                              </button>
+                              <button
+                                className="dash-btn danger"
+                                onClick={() => removeAlert(a.id)}
+                              >
+                                Delete
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </section>
+        )}
+
+        {activeMenu === "portfolio" && (
+          <section className="dash-card" style={{ marginBottom: 12 }}>
+            <h3>Portfolio Tracker</h3>
+            <form onSubmit={saveHolding}>
+              <div className="dash-form-grid">
+                <div className="dash-form-row">
+                  <label>Symbol</label>
+                  <select
+                    className="dash-select"
+                    value={portfolioForm.symbol}
+                    onChange={(e) =>
+                      setPortfolioForm((p) => ({
+                        ...p,
+                        symbol: e.target.value,
+                      }))
+                    }
+                  >
+                    {config.cryptocurrencies.map((crypto) => (
+                      <option key={crypto.symbol} value={crypto.symbol}>
+                        {crypto.name} ({crypto.symbol})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="dash-form-row">
+                  <label>Quantity</label>
+                  <input
+                    className="dash-input"
+                    type="number"
+                    step="0.0001"
+                    min="0"
+                    value={portfolioForm.quantity}
+                    onChange={(e) =>
+                      setPortfolioForm((p) => ({
+                        ...p,
+                        quantity: e.target.value,
+                      }))
+                    }
+                    required
+                  />
+                </div>
+                <div className="dash-form-row">
+                  <label>Average buy price</label>
+                  <input
+                    className="dash-input"
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={portfolioForm.avg_buy_price}
+                    onChange={(e) =>
+                      setPortfolioForm((p) => ({
+                        ...p,
+                        avg_buy_price: e.target.value,
+                      }))
+                    }
+                    required
+                  />
+                </div>
+              </div>
+              <div className="dash-actions" style={{ marginTop: 10 }}>
+                <button className="dash-btn primary" type="submit">
+                  Save holding
+                </button>
+                <button
+                  className="dash-btn neutral"
+                  type="button"
+                  onClick={loadPortfolio}
+                >
+                  Refresh
+                </button>
+              </div>
+            </form>
+
+            <div
+              className="dash-grid-4"
+              style={{ marginTop: 12, marginBottom: 12 }}
+            >
+              <div className="dash-card" style={{ background: "#f8fafc" }}>
+                <p className="dash-stat-label">Total Value</p>
+                <p className="dash-stat-value">
+                  $
+                  {Number(
+                    portfolioData.summary?.total_market_value || 0,
+                  ).toLocaleString()}
+                </p>
+              </div>
+              <div className="dash-card" style={{ background: "#f8fafc" }}>
+                <p className="dash-stat-label">Cost Basis</p>
+                <p className="dash-stat-value">
+                  $
+                  {Number(
+                    portfolioData.summary?.total_cost_basis || 0,
+                  ).toLocaleString()}
+                </p>
+              </div>
+              <div className="dash-card" style={{ background: "#f8fafc" }}>
+                <p className="dash-stat-label">Unrealized P/L</p>
+                <p
+                  className="dash-stat-value"
+                  style={{
+                    color:
+                      Number(portfolioData.summary?.total_unrealized_pl || 0) >=
+                      0
+                        ? "#16a34a"
+                        : "#dc2626",
+                  }}
+                >
+                  $
+                  {Number(
+                    portfolioData.summary?.total_unrealized_pl || 0,
+                  ).toLocaleString()}
+                </p>
+              </div>
+              <div className="dash-card" style={{ background: "#f8fafc" }}>
+                <p className="dash-stat-label">P/L %</p>
+                <p
+                  className="dash-stat-value"
+                  style={{
+                    color:
+                      Number(
+                        portfolioData.summary?.total_unrealized_pl_pct || 0,
+                      ) >= 0
+                        ? "#16a34a"
+                        : "#dc2626",
+                  }}
+                >
+                  {Number(
+                    portfolioData.summary?.total_unrealized_pl_pct || 0,
+                  ).toFixed(2)}
+                  %
+                </p>
+              </div>
+            </div>
+
+            <div className="dash-table-wrap">
+              <table className="dash-table">
+                <thead>
+                  <tr>
+                    <th>Symbol</th>
+                    <th>Qty</th>
+                    <th>Avg Buy</th>
+                    <th>Market</th>
+                    <th>Market Value</th>
+                    <th>P/L</th>
+                    <th>Allocation</th>
+                    <th>Risk</th>
+                    <th>Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {portfolioLoading ? (
+                    <tr>
+                      <td colSpan={9}>Loading portfolio...</td>
+                    </tr>
+                  ) : (portfolioData.holdings || []).length === 0 ? (
+                    <tr>
+                      <td colSpan={9}>No holdings yet.</td>
+                    </tr>
+                  ) : (
+                    (portfolioData.holdings || []).map((h) => (
+                      <tr key={h.symbol}>
+                        <td>{h.symbol}</td>
+                        <td>{Number(h.quantity).toFixed(4)}</td>
+                        <td>${Number(h.avg_buy_price).toFixed(2)}</td>
+                        <td>${Number(h.market_price || 0).toFixed(2)}</td>
+                        <td>${Number(h.market_value || 0).toFixed(2)}</td>
+                        <td
+                          style={{
+                            color:
+                              Number(h.unrealized_pl || 0) >= 0
+                                ? "#16a34a"
+                                : "#dc2626",
+                            fontWeight: 700,
+                          }}
+                        >
+                          ${Number(h.unrealized_pl || 0).toFixed(2)} (
+                          {Number(h.unrealized_pl_pct || 0).toFixed(2)}%)
+                        </td>
+                        <td>{Number(h.allocation_pct || 0).toFixed(2)}%</td>
+                        <td>
+                          {h.risk_level ? (
+                            <span className="dash-badge yellow">
+                              {h.risk_level} (
+                              {Number(h.risk_score || 0).toFixed(1)})
+                            </span>
+                          ) : (
+                            "-"
+                          )}
+                        </td>
+                        <td>
+                          <button
+                            className="dash-btn danger"
+                            onClick={() => deleteHolding(h.symbol)}
+                          >
+                            Remove
+                          </button>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </section>
+        )}
+
+        {activeMenu === "backtest" && (
+          <section className="dash-card" style={{ marginBottom: 12 }}>
+            <h3>⚗️ Backtesting Module</h3>
+            <p className="dash-stat-label" style={{ marginBottom: 12 }}>
+              Simulate a prediction-based trading strategy on historical data
+              and compare it against buy &amp; hold.
+            </p>
+
+            <form onSubmit={runBacktest}>
+              <div className="dash-form-grid">
+                <div className="dash-form-row">
+                  <label>Symbol</label>
+                  <select
+                    className="dash-select"
+                    value={backtestForm.symbol}
+                    onChange={(e) =>
+                      setBacktestForm((p) => ({ ...p, symbol: e.target.value }))
+                    }
+                  >
+                    {config.cryptocurrencies.map((c) => (
+                      <option key={c.symbol} value={c.symbol}>
+                        {c.name} ({c.symbol})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="dash-form-row">
+                  <label>Model</label>
+                  <select
+                    className="dash-select"
+                    value={backtestForm.model}
+                    onChange={(e) =>
+                      setBacktestForm((p) => ({ ...p, model: e.target.value }))
+                    }
+                  >
+                    <option value="random_forest">Random Forest</option>
+                    <option value="linear_regression">Linear Regression</option>
+                    <option value="xgboost">XGBoost</option>
+                    <option value="svr">SVR</option>
+                    <option value="lstm">LSTM (MLP)</option>
+                    <option value="gru">GRU (MLP)</option>
+                    <option value="transformer">Transformer (GB)</option>
+                  </select>
+                </div>
+
+                <div className="dash-form-row">
+                  <label>Initial Capital ($)</label>
+                  <input
+                    className="dash-input"
+                    type="number"
+                    min="100"
+                    step="100"
+                    value={backtestForm.initial_capital}
+                    onChange={(e) =>
+                      setBacktestForm((p) => ({
+                        ...p,
+                        initial_capital: e.target.value,
+                      }))
+                    }
+                    required
+                  />
+                </div>
+
+                <div className="dash-form-row">
+                  <label>Test window (% of data)</label>
+                  <select
+                    className="dash-select"
+                    value={backtestForm.test_size}
+                    onChange={(e) =>
+                      setBacktestForm((p) => ({
+                        ...p,
+                        test_size: e.target.value,
+                      }))
+                    }
+                  >
+                    <option value="0.1">Last 10%</option>
+                    <option value="0.2">Last 20%</option>
+                    <option value="0.3">Last 30%</option>
+                    <option value="0.5">Last 50%</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="dash-actions" style={{ marginTop: 10 }}>
+                <button
+                  className="dash-btn primary"
+                  type="submit"
+                  disabled={backtestLoading}
+                >
+                  {backtestLoading ? "Running…" : "Run Backtest"}
+                </button>
+              </div>
+            </form>
+
+            {backtestError && (
+              <p style={{ color: "#dc2626", marginTop: 10 }}>{backtestError}</p>
+            )}
+
+            {backtestResult && (
+              <>
+                <div
+                  className="dash-grid-4"
+                  style={{ marginTop: 16, marginBottom: 12 }}
+                >
+                  <div className="dash-card" style={{ background: "#f0f1ff" }}>
+                    <p className="dash-stat-label">Final Value</p>
+                    <p className="dash-stat-value" style={{ color: "#6366f1" }}>
+                      ${Number(backtestResult.final_value).toLocaleString()}
+                    </p>
+                  </div>
+                  <div className="dash-card" style={{ background: "#f0fdf4" }}>
+                    <p className="dash-stat-label">Strategy Return</p>
+                    <p
+                      className="dash-stat-value"
+                      style={{
+                        color:
+                          backtestResult.total_return_pct >= 0
+                            ? "#16a34a"
+                            : "#dc2626",
+                      }}
+                    >
+                      {backtestResult.total_return_pct >= 0 ? "+" : ""}
+                      {Number(backtestResult.total_return_pct).toFixed(2)}%
+                    </p>
+                  </div>
+                  <div className="dash-card" style={{ background: "#fffbeb" }}>
+                    <p className="dash-stat-label">Buy &amp; Hold Return</p>
+                    <p
+                      className="dash-stat-value"
+                      style={{
+                        color:
+                          backtestResult.bah_return_pct >= 0
+                            ? "#d97706"
+                            : "#dc2626",
+                      }}
+                    >
+                      {backtestResult.bah_return_pct >= 0 ? "+" : ""}
+                      {Number(backtestResult.bah_return_pct).toFixed(2)}%
+                    </p>
+                  </div>
+                  <div className="dash-card" style={{ background: "#fff1f2" }}>
+                    <p className="dash-stat-label">Max Drawdown</p>
+                    <p className="dash-stat-value" style={{ color: "#dc2626" }}>
+                      -{Number(backtestResult.max_drawdown_pct).toFixed(2)}%
+                    </p>
+                  </div>
+                  <div className="dash-card" style={{ background: "#f8fafc" }}>
+                    <p className="dash-stat-label">Sharpe Ratio</p>
+                    <p className="dash-stat-value">
+                      {Number(backtestResult.sharpe_ratio).toFixed(3)}
+                    </p>
+                  </div>
+                  <div className="dash-card" style={{ background: "#f8fafc" }}>
+                    <p className="dash-stat-label">Win Rate</p>
+                    <p className="dash-stat-value">
+                      {Number(backtestResult.win_rate_pct).toFixed(1)}%
+                    </p>
+                  </div>
+                  <div className="dash-card" style={{ background: "#f8fafc" }}>
+                    <p className="dash-stat-label">Total Trades</p>
+                    <p className="dash-stat-value">
+                      {backtestResult.total_trades}
+                    </p>
+                  </div>
+                  <div className="dash-card" style={{ background: "#f8fafc" }}>
+                    <p className="dash-stat-label">Test Days</p>
+                    <p className="dash-stat-value">
+                      {backtestResult.test_days}
+                    </p>
+                  </div>
+                </div>
+
+                <p className="dash-stat-label" style={{ marginBottom: 6 }}>
+                  Model used: <strong>{backtestResult.model}</strong>
+                  &nbsp;·&nbsp;Initial:{" "}
+                  <strong>
+                    ${Number(backtestResult.initial_capital).toLocaleString()}
+                  </strong>
+                  &nbsp;·&nbsp;B&amp;H final:{" "}
+                  <strong>
+                    ${Number(backtestResult.bah_final_value).toLocaleString()}
+                  </strong>
+                </p>
+
+                {backtestChartData && (
+                  <div style={{ height: 280, marginBottom: 16 }}>
+                    <Line
+                      data={backtestChartData}
+                      options={{
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                          legend: { position: "top" },
+                          tooltip: {
+                            callbacks: {
+                              label: (ctx) =>
+                                `${ctx.dataset.label}: $${Number(ctx.raw).toLocaleString()}`,
+                            },
+                          },
+                        },
+                        scales: {
+                          y: {
+                            ticks: {
+                              callback: (v) => `$${Number(v).toLocaleString()}`,
+                            },
+                          },
+                        },
+                      }}
+                    />
+                  </div>
+                )}
+
+                {backtestResult.trades?.length > 0 && (
+                  <>
+                    <h4 style={{ marginBottom: 8 }}>Recent Trades (last 50)</h4>
+                    <div className="dash-table-wrap">
+                      <table className="dash-table">
+                        <thead>
+                          <tr>
+                            <th>Date</th>
+                            <th>Action</th>
+                            <th>Price</th>
+                            <th>Shares</th>
+                            <th>Value</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {backtestResult.trades.map((t, idx) => (
+                            <tr key={idx}>
+                              <td>{t.date}</td>
+                              <td>
+                                <span
+                                  className={`dash-badge ${t.action === "buy" ? "green" : "red"}`}
+                                >
+                                  {t.action}
+                                </span>
+                              </td>
+                              <td>${Number(t.price).toLocaleString()}</td>
+                              <td>{Number(t.shares).toFixed(6)}</td>
+                              <td>${Number(t.value).toLocaleString()}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </>
+                )}
+              </>
+            )}
           </section>
         )}
 
@@ -1266,12 +2430,15 @@ export default function UserDashboard() {
         {activeMenu === "security" && (
           <section className="dash-card">
             <h3>Security & Two-Factor Authentication</h3>
-            <div className="dash-actions" style={{ marginBottom: 10 }}>
+            <div className="dash-toolbar">
               <button className="dash-btn primary" onClick={setupTwoFactor}>
                 Generate 2FA Secret
               </button>
               <button className="dash-btn danger" onClick={disableTwoFactor}>
                 Disable 2FA
+              </button>
+              <button className="dash-btn neutral" onClick={logoutAllDevices}>
+                Log out all devices
               </button>
             </div>
 
