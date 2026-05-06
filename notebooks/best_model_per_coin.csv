@@ -1,5 +1,5 @@
-Coin,Best_Model
-BTC-USD,Linear Regression
-ETH-USD,Linear Regression
-ADA-USD,Linear Regression
-SOL-USD,Linear Regression
+Coin,Model,RMSE,R2
+ADA-USD,Linear Regression,0.0244,0.9887
+BTC-USD,Weighted Average,1986.8624,0.9874
+ETH-USD,Linear Regression,113.6574,0.9811
+SOL-USD,Blending,5.9709,0.9828

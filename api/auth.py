@@ -137,10 +137,12 @@ class AlertCreateRequest(BaseModel):
     direction: str = "above"  # above | below
     sentiment_label: Optional[str] = None  # positive | neutral | negative
     is_enabled: bool = True
+    email_enabled: bool = True
 
 
 class AlertUpdateRequest(BaseModel):
-    is_enabled: bool
+    is_enabled: Optional[bool] = None
+    email_enabled: Optional[bool] = None
 
 
 class PortfolioHoldingRequest(BaseModel):
@@ -312,6 +314,17 @@ def ensure_users_schema(conn: sqlite3.Connection) -> None:
     conn.execute("UPDATE users SET status = 'approved' WHERE status IS NULL OR status = ''")
 
 
+def ensure_alerts_schema(conn: sqlite3.Connection) -> None:
+    existing = table_columns(conn, "alerts")
+
+    if "email_enabled" not in existing:
+        conn.execute("ALTER TABLE alerts ADD COLUMN email_enabled INTEGER NOT NULL DEFAULT 1")
+    if "last_notified_at" not in existing:
+        conn.execute("ALTER TABLE alerts ADD COLUMN last_notified_at TEXT")
+
+    conn.execute("UPDATE alerts SET email_enabled = 1 WHERE email_enabled IS NULL")
+
+
 def init_auth_db() -> None:
     conn = get_connection()
     try:
@@ -454,11 +467,14 @@ def init_auth_db() -> None:
                 direction TEXT NOT NULL DEFAULT 'above',
                 sentiment_label TEXT,
                 is_enabled INTEGER NOT NULL DEFAULT 1,
+                email_enabled INTEGER NOT NULL DEFAULT 1,
+                last_notified_at TEXT,
                 created_at TEXT NOT NULL,
                 FOREIGN KEY(user_id) REFERENCES users(id)
             )
             """
         )
+        ensure_alerts_schema(conn)
         conn.execute(
             """
             CREATE TABLE IF NOT EXISTS portfolio_holdings (
@@ -656,6 +672,50 @@ def get_latest_price_and_change(symbol: str) -> tuple[Optional[float], Optional[
     prev = float(rows[1]["close"])
     pct = ((latest - prev) / max(prev, 1e-6)) * 100.0
     return latest, float(pct)
+
+
+def evaluate_alert_condition(
+    alert: Dict[str, Any],
+    latest_price: Optional[float] = None,
+    pct_change_24h: Optional[float] = None,
+    sentiment_label: Optional[str] = None,
+) -> Dict[str, Any]:
+    is_triggered = False
+    reason = None
+
+    if alert["alert_type"] == "target" and latest_price is not None and alert["threshold_value"] is not None:
+        threshold = float(alert["threshold_value"])
+        if alert["direction"] == "above":
+            is_triggered = latest_price >= threshold
+        else:
+            is_triggered = latest_price <= threshold
+        if is_triggered:
+            reason = f"Price {latest_price:.2f} crossed {alert['direction']} target {threshold:.2f}."
+
+    elif alert["alert_type"] == "percent" and pct_change_24h is not None and alert["threshold_value"] is not None:
+        threshold = float(alert["threshold_value"])
+        if alert["direction"] == "above":
+            is_triggered = pct_change_24h >= threshold
+        else:
+            is_triggered = pct_change_24h <= -abs(threshold)
+        if is_triggered:
+            reason = (
+                f"24h change {pct_change_24h:.2f}% triggered {alert['direction']} threshold {threshold:.2f}%."
+            )
+
+    elif alert["alert_type"] == "sentiment" and sentiment_label:
+        expected = (alert.get("sentiment_label") or "").strip().lower()
+        normalized_sentiment = sentiment_label.strip().lower()
+        is_triggered = normalized_sentiment == expected
+        if is_triggered:
+            reason = f"Sentiment is {normalized_sentiment}, matching alert."
+
+    return {
+        "latest_price": latest_price,
+        "pct_change_24h": pct_change_24h,
+        "is_triggered": is_triggered,
+        "reason": reason,
+    }
 
 
 def compute_risk_profile(raw_df: pd.DataFrame) -> tuple[float, str]:
@@ -1646,7 +1706,8 @@ def list_user_alerts(current_user: sqlite3.Row = Depends(require_role("user", "r
     try:
         rows = conn.execute(
             """
-            SELECT id, symbol, alert_type, threshold_value, direction, sentiment_label, is_enabled, created_at
+            SELECT id, symbol, alert_type, threshold_value, direction, sentiment_label, is_enabled,
+                   email_enabled, last_notified_at, created_at
             FROM alerts
             WHERE user_id = ?
             ORDER BY datetime(created_at) DESC
@@ -1660,6 +1721,7 @@ def list_user_alerts(current_user: sqlite3.Row = Depends(require_role("user", "r
         {
             **dict(r),
             "is_enabled": bool(r["is_enabled"]),
+            "email_enabled": bool(r["email_enabled"]),
         }
         for r in rows
     ]
@@ -1708,8 +1770,11 @@ def create_user_alert(
     try:
         cursor = conn.execute(
             """
-            INSERT INTO alerts (user_id, symbol, alert_type, threshold_value, direction, sentiment_label, is_enabled, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO alerts (
+                user_id, symbol, alert_type, threshold_value, direction, sentiment_label,
+                is_enabled, email_enabled, created_at
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 current_user["id"],
@@ -1719,6 +1784,7 @@ def create_user_alert(
                 direction,
                 sentiment_label,
                 int(payload.is_enabled),
+                int(payload.email_enabled),
                 now_utc(),
             ),
         )
@@ -1736,6 +1802,18 @@ def update_user_alert(
     payload: AlertUpdateRequest,
     current_user: sqlite3.Row = Depends(require_role("user", "researcher", "admin")),
 ):
+    updates = []
+    params: List[Any] = []
+
+    if payload.is_enabled is not None:
+        updates.append("is_enabled = ?")
+        params.append(int(payload.is_enabled))
+    if payload.email_enabled is not None:
+        updates.append("email_enabled = ?")
+        params.append(int(payload.email_enabled))
+    if not updates:
+        raise HTTPException(status_code=400, detail="No alert fields provided to update.")
+
     conn = get_connection()
     try:
         found = conn.execute(
@@ -1746,8 +1824,8 @@ def update_user_alert(
             raise HTTPException(status_code=404, detail="Alert not found.")
 
         conn.execute(
-            "UPDATE alerts SET is_enabled = ? WHERE id = ? AND user_id = ?",
-            (int(payload.is_enabled), alert_id, current_user["id"]),
+            f"UPDATE alerts SET {', '.join(updates)} WHERE id = ? AND user_id = ?",
+            (*params, alert_id, current_user["id"]),
         )
         conn.commit()
     finally:
@@ -1785,7 +1863,8 @@ def check_user_alerts(
     try:
         rows = conn.execute(
             """
-            SELECT id, symbol, alert_type, threshold_value, direction, sentiment_label, is_enabled, created_at
+            SELECT id, symbol, alert_type, threshold_value, direction, sentiment_label, is_enabled,
+                   email_enabled, last_notified_at, created_at
             FROM alerts
             WHERE user_id = ? AND is_enabled = 1
             ORDER BY datetime(created_at) DESC
@@ -1802,43 +1881,21 @@ def check_user_alerts(
         alert = dict(r)
         symbol = alert["symbol"]
         latest_price, pct_change_24h = get_latest_price_and_change(symbol)
-        is_triggered = False
-        reason = None
-
-        if alert["alert_type"] == "target" and latest_price is not None and alert["threshold_value"] is not None:
-            threshold = float(alert["threshold_value"])
-            if alert["direction"] == "above":
-                is_triggered = latest_price >= threshold
-            else:
-                is_triggered = latest_price <= threshold
-            if is_triggered:
-                reason = f"Price {latest_price:.2f} crossed {alert['direction']} target {threshold:.2f}."
-
-        elif alert["alert_type"] == "percent" and pct_change_24h is not None and alert["threshold_value"] is not None:
-            threshold = float(alert["threshold_value"])
-            if alert["direction"] == "above":
-                is_triggered = pct_change_24h >= threshold
-            else:
-                is_triggered = pct_change_24h <= -abs(threshold)
-            if is_triggered:
-                reason = f"24h change {pct_change_24h:.2f}% triggered {alert['direction']} threshold {threshold:.2f}%."
-
-        elif alert["alert_type"] == "sentiment" and normalized_sentiment:
-            expected = (alert.get("sentiment_label") or "").strip().lower()
-            is_triggered = normalized_sentiment == expected
-            if is_triggered:
-                reason = f"Sentiment is {normalized_sentiment}, matching alert."
+        evaluation = evaluate_alert_condition(
+            alert,
+            latest_price=latest_price,
+            pct_change_24h=pct_change_24h,
+            sentiment_label=normalized_sentiment,
+        )
 
         item = {
             **alert,
             "is_enabled": bool(alert["is_enabled"]),
-            "latest_price": latest_price,
-            "pct_change_24h": pct_change_24h,
-            "is_triggered": is_triggered,
-            "reason": reason,
+            "email_enabled": bool(alert["email_enabled"]),
+            **evaluation,
         }
         checks.append(item)
-        if is_triggered:
+        if evaluation["is_triggered"]:
             triggered.append(item)
 
     return {

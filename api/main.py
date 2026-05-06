@@ -1,15 +1,28 @@
 # api/main.py
+import asyncio
+import contextlib
 import sys
 import os
 import json
+import logging
 import re
 import xml.etree.ElementTree as ET
+from datetime import datetime, timezone
+from urllib.error import HTTPError
 from urllib.parse import quote
 from urllib.request import Request, urlopen
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from fastapi import Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from api.auth import router as auth_router, require_role
+from api.auth import (
+    router as auth_router,
+    evaluate_alert_condition,
+    get_connection,
+    now_utc,
+    require_role,
+    track_activity,
+    track_api_usage,
+)
 import pandas as pd
 import yfinance as yf
 
@@ -92,6 +105,10 @@ NEGATIVE_WORDS = {
 
 app = FastAPI()
 app.include_router(auth_router)
+logger = logging.getLogger("uvicorn.error")
+
+EMAILJS_SEND_URL = "https://api.emailjs.com/api/v1.0/email/send"
+ALERT_EMAIL_INTERVAL_SECONDS = max(300, int(os.getenv("ALERT_EMAIL_INTERVAL_SECONDS", "3600")))
 
 # Allow CORS for frontend (explicit whitelisted origins for development)
 app.add_middleware(
@@ -369,6 +386,240 @@ def _extract_x_api_tweets(query: str, limit: int = 10) -> tuple[list[dict], str]
         return tweets, "twitter-api"
     except Exception:
         return [], "twitter-api-failed"
+
+
+def _parse_iso_datetime(value: str | None) -> datetime | None:
+    if not value:
+        return None
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+        if parsed.tzinfo is None:
+            return parsed.replace(tzinfo=timezone.utc)
+        return parsed.astimezone(timezone.utc)
+    except Exception:
+        return None
+
+
+def _should_send_alert_email(last_notified_at: str | None) -> bool:
+    last_sent = _parse_iso_datetime(last_notified_at)
+    if last_sent is None:
+        return True
+    elapsed = datetime.now(timezone.utc) - last_sent
+    return elapsed.total_seconds() >= ALERT_EMAIL_INTERVAL_SECONDS
+
+
+def _get_symbol_sentiment_label(symbol: str) -> str | None:
+    coin_id = _symbol_to_coin_id(symbol)
+    code = _symbol_code(symbol)
+
+    news_raw, _ = _fetch_google_news_rss(coin_id, code, limit=8)
+    if not news_raw:
+        news_raw = _news_items_for_coin(coin_id)
+    news_scores = []
+    for item in news_raw[:8]:
+        analyzed = _analyze_text_sentiment(f"{item.get('title', '')} {item.get('summary', '')}")
+        news_scores.append({"sentiment_score": analyzed["score"]})
+
+    keyword = " OR ".join(SYMBOL_KEYWORDS.get(code, [code.lower()])) + " lang:en"
+    tweets, _ = _extract_x_api_tweets(keyword, limit=8)
+    if not tweets:
+        tweets, _ = _extract_nitter_rss_tweets(f"{code} OR {coin_id} lang:en", limit=8)
+    tweet_scores = []
+    for item in tweets[:8]:
+        analyzed = _analyze_text_sentiment(item.get("text", ""))
+        tweet_scores.append({"sentiment_score": analyzed["score"]})
+
+    summaries = []
+    if news_scores:
+        summaries.append(_aggregate_sentiment(news_scores))
+    if tweet_scores:
+        summaries.append(_aggregate_sentiment(tweet_scores))
+    if not summaries:
+        return None
+
+    overall_score = sum(item["score"] for item in summaries) / len(summaries)
+    if overall_score > 0.12:
+        return "positive"
+    if overall_score < -0.12:
+        return "negative"
+    return "neutral"
+
+
+def _send_emailjs_alert(alert: dict, recipient_email: str) -> tuple[bool, str]:
+    service_id = (os.getenv("EMAILJS_SERVICE_ID") or "").strip()
+    template_id = (os.getenv("EMAILJS_TEMPLATE_ID") or "").strip()
+    public_key = (os.getenv("EMAILJS_PUBLIC_KEY") or "").strip()
+    private_key = (os.getenv("EMAILJS_PRIVATE_KEY") or "").strip()
+
+    if not service_id or not template_id or not public_key:
+        return False, "EmailJS is not configured."
+
+    payload = {
+        "service_id": service_id,
+        "template_id": template_id,
+        "user_id": public_key,
+        "template_params": {
+            "to_email": recipient_email,
+            "user_email": recipient_email,
+            "symbol": alert["symbol"],
+            "alert_type": alert["alert_type"],
+            "direction": alert.get("direction") or "",
+            "threshold_value": ""
+            if alert.get("threshold_value") is None
+            else str(alert.get("threshold_value")),
+            "sentiment_label": alert.get("sentiment_label") or "",
+            "latest_price": ""
+            if alert.get("latest_price") is None
+            else f"{float(alert['latest_price']):.2f}",
+            "pct_change_24h": ""
+            if alert.get("pct_change_24h") is None
+            else f"{float(alert['pct_change_24h']):.2f}",
+            "reason": alert.get("reason") or "Alert condition triggered.",
+            "triggered_at": now_utc(),
+        },
+    }
+    if private_key:
+        payload["accessToken"] = private_key
+
+    req = Request(
+        EMAILJS_SEND_URL,
+        data=json.dumps(payload).encode("utf-8"),
+        headers={
+            "Content-Type": "application/json",
+            "User-Agent": (
+                "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) "
+                "Chrome/124.0.0.0 Safari/537.36"
+            ),
+            "Accept": "application/json, text/plain, */*",
+            "Accept-Language": "en-US,en;q=0.9",
+            "Origin": "https://dashboard.emailjs.com",
+            "Referer": "https://dashboard.emailjs.com/",
+        },
+        method="POST",
+    )
+
+    try:
+        with urlopen(req, timeout=15) as resp:
+            status = getattr(resp, "status", 200)
+            if status >= 400:
+                return False, f"EmailJS returned HTTP {status}."
+        return True, "sent"
+    except HTTPError as exc:
+        try:
+            error_body = exc.read().decode("utf-8", errors="replace").strip()
+        except Exception:
+            error_body = ""
+        detail = f"HTTP Error {exc.code}: {exc.reason}"
+        if error_body:
+            detail = f"{detail} | {error_body}"
+        return False, detail
+    except Exception as exc:
+        return False, str(exc)
+
+
+def _run_alert_email_cycle() -> None:
+    conn = get_connection()
+    try:
+        alerts = conn.execute(
+            """
+            SELECT a.id, a.user_id, a.symbol, a.alert_type, a.threshold_value, a.direction,
+                   a.sentiment_label, a.last_notified_at, u.email
+            FROM alerts a
+            JOIN users u ON u.id = a.user_id
+            WHERE a.is_enabled = 1 AND a.email_enabled = 1 AND u.status = 'approved'
+            ORDER BY a.id ASC
+            """
+        ).fetchall()
+    finally:
+        conn.close()
+
+    if not alerts:
+        return
+
+    live_cache: dict[str, tuple[float | None, float | None]] = {}
+    sentiment_cache: dict[str, str | None] = {}
+
+    for row in alerts:
+        alert = dict(row)
+        symbol = alert["symbol"]
+
+        if symbol not in live_cache:
+            from api.auth import get_latest_price_and_change
+
+            live_cache[symbol] = get_latest_price_and_change(symbol)
+
+        latest_price, pct_change_24h = live_cache[symbol]
+        sentiment_label = None
+        if alert["alert_type"] == "sentiment":
+            if symbol not in sentiment_cache:
+                sentiment_cache[symbol] = _get_symbol_sentiment_label(symbol)
+            sentiment_label = sentiment_cache[symbol]
+
+        evaluation = evaluate_alert_condition(
+            alert,
+            latest_price=latest_price,
+            pct_change_24h=pct_change_24h,
+            sentiment_label=sentiment_label,
+        )
+        if not evaluation["is_triggered"] or not _should_send_alert_email(alert.get("last_notified_at")):
+            continue
+
+        delivered, status_message = _send_emailjs_alert(
+            {
+                **alert,
+                **evaluation,
+            },
+            recipient_email=alert["email"],
+        )
+        if not delivered:
+            logger.warning("Alert email delivery failed for alert_id=%s: %s", alert["id"], status_message)
+            continue
+
+        track_api_usage("emailjs", "alert_email", alert["user_id"])
+        track_activity(
+            alert["user_id"],
+            "user.alert.email_sent",
+            f"alert_id={alert['id']}, symbol={symbol}",
+        )
+
+        update_conn = get_connection()
+        try:
+            update_conn.execute(
+                "UPDATE alerts SET last_notified_at = ? WHERE id = ?",
+                (now_utc(), alert["id"]),
+            )
+            update_conn.commit()
+        finally:
+            update_conn.close()
+
+
+async def _alert_email_worker() -> None:
+    while True:
+        try:
+            await asyncio.to_thread(_run_alert_email_cycle)
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:
+            logger.exception("Alert email worker failed: %s", exc)
+        await asyncio.sleep(ALERT_EMAIL_INTERVAL_SECONDS)
+
+
+@app.on_event("startup")
+async def startup_alert_email_worker() -> None:
+    if getattr(app.state, "alert_email_task", None) is None:
+        app.state.alert_email_task = asyncio.create_task(_alert_email_worker())
+
+
+@app.on_event("shutdown")
+async def shutdown_alert_email_worker() -> None:
+    task = getattr(app.state, "alert_email_task", None)
+    if task is None:
+        return
+    task.cancel()
+    with contextlib.suppress(asyncio.CancelledError):
+        await task
+    app.state.alert_email_task = None
 
 
 @app.get("/api/live-market")

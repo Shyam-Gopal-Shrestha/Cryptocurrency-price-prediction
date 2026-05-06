@@ -221,6 +221,7 @@ export default function UserDashboard() {
     threshold_value: "",
     direction: "above",
     sentiment_label: "positive",
+    email_enabled: true,
   });
 
   const [portfolioData, setPortfolioData] = useState({
@@ -648,6 +649,7 @@ export default function UserDashboard() {
         alert_type: alertsForm.alert_type,
         direction: alertsForm.direction,
         is_enabled: true,
+        email_enabled: alertsForm.email_enabled,
       };
       if (alertsForm.alert_type === "sentiment") {
         payload.sentiment_label = alertsForm.sentiment_label;
@@ -691,6 +693,19 @@ export default function UserDashboard() {
       await checkAlerts();
     } catch (err) {
       setError(err.response?.data?.detail || "Failed to update alert.");
+    }
+  };
+
+  const toggleAlertEmail = async (alertId, emailEnabled) => {
+    try {
+      await api.patch(`/user/alerts/${alertId}`, {
+        email_enabled: !emailEnabled,
+      });
+      await loadAlerts();
+    } catch (err) {
+      setError(
+        err.response?.data?.detail || "Failed to update email notifications.",
+      );
     }
   };
 
@@ -1836,6 +1851,25 @@ export default function UserDashboard() {
                     </div>
                   </>
                 )}
+
+                <div className="dash-form-row">
+                  <label>Email notification</label>
+                  <select
+                    className="dash-select"
+                    value={alertsForm.email_enabled ? "enabled" : "disabled"}
+                    onChange={(e) =>
+                      setAlertsForm((p) => ({
+                        ...p,
+                        email_enabled: e.target.value === "enabled",
+                      }))
+                    }
+                  >
+                    <option value="enabled">
+                      Email me every hour when triggered
+                    </option>
+                    <option value="disabled">Create alert without email</option>
+                  </select>
+                </div>
               </div>
 
               <div className="dash-actions" style={{ marginTop: 10 }}>
@@ -1859,6 +1893,11 @@ export default function UserDashboard() {
               </p>
             )}
 
+            <p className="dash-stat-label" style={{ marginTop: 6 }}>
+              Enabled email alerts are evaluated by the backend every hour and
+              sent to your account email when triggered.
+            </p>
+
             <div className="dash-table-wrap" style={{ marginTop: 10 }}>
               <table className="dash-table">
                 <thead>
@@ -1867,6 +1906,7 @@ export default function UserDashboard() {
                     <th>Type</th>
                     <th>Rule</th>
                     <th>Status</th>
+                    <th>Email</th>
                     <th>Triggered</th>
                     <th>Actions</th>
                   </tr>
@@ -1874,11 +1914,11 @@ export default function UserDashboard() {
                 <tbody>
                   {alertsLoading ? (
                     <tr>
-                      <td colSpan={6}>Loading alerts...</td>
+                      <td colSpan={7}>Loading alerts...</td>
                     </tr>
                   ) : alerts.length === 0 ? (
                     <tr>
-                      <td colSpan={6}>No alerts configured yet.</td>
+                      <td colSpan={7}>No alerts configured yet.</td>
                     </tr>
                   ) : (
                     alerts.map((a) => {
@@ -1904,6 +1944,25 @@ export default function UserDashboard() {
                             </span>
                           </td>
                           <td>
+                            <span
+                              className={`dash-badge ${a.email_enabled ? "blue" : "red"}`}
+                            >
+                              {a.email_enabled ? "hourly on" : "off"}
+                            </span>
+                            {a.last_notified_at && (
+                              <div
+                                style={{
+                                  fontSize: 12,
+                                  marginTop: 6,
+                                  color: "#64748b",
+                                }}
+                              >
+                                Last sent{" "}
+                                {new Date(a.last_notified_at).toLocaleString()}
+                              </div>
+                            )}
+                          </td>
+                          <td>
                             {checked?.is_triggered ? (
                               <span className="dash-badge yellow">yes</span>
                             ) : (
@@ -1917,6 +1976,16 @@ export default function UserDashboard() {
                                 onClick={() => toggleAlert(a.id, a.is_enabled)}
                               >
                                 {a.is_enabled ? "Disable" : "Enable"}
+                              </button>
+                              <button
+                                className="dash-btn neutral"
+                                onClick={() =>
+                                  toggleAlertEmail(a.id, a.email_enabled)
+                                }
+                              >
+                                {a.email_enabled
+                                  ? "Pause email"
+                                  : "Enable email"}
                               </button>
                               <button
                                 className="dash-btn danger"
