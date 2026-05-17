@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>OWASP Scan Summary</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif; margin: 24px; color: #1f2937; }
+    h1 { margin-bottom: 8px; }
+    h2 { margin-top: 28px; }
+    .muted { color: #6b7280; }
+    .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 12px; margin-top: 14px; }
+    .card { border: 1px solid #e5e7eb; border-radius: 10px; padding: 12px; background: #f9fafb; }
+    .metric { font-size: 1.6rem; font-weight: 700; margin-top: 2px; }
+    .ok { color: #047857; font-weight: 600; }
+    table { border-collapse: collapse; width: 100%; margin-top: 10px; font-size: 0.92rem; }
+    th, td { border: 1px solid #e5e7eb; padding: 8px; text-align: left; vertical-align: top; }
+    th { background: #f3f4f6; }
+  </style>
+</head>
+<body>
+  <h1>OWASP Security Report</h1>
+  <p class="muted">Source directory: /Users/shyamshrestha/crypto-price-prediction/security/reports/20260512_233115</p>
+
+  <div class="cards">
+    <div class="card"><div>Dependencies scanned</div><div class="metric">99</div></div>
+    <div class="card"><div>pip-audit vulns</div><div class="metric">0</div></div>
+    <div class="card"><div>Bandit findings</div><div class="metric">18</div></div>
+    <div class="card"><div>Semgrep findings</div><div class="metric">0</div></div>
+  </div>
+
+  <h2>pip-audit</h2>
+  <p>Vulnerabilities found: <strong>0</strong></p>
+  <p class='ok'>No findings.</p>
+
+  <h2>Bandit</h2>
+  <p>Findings: <strong>18</strong> (LOW=9, MEDIUM=9, HIGH=0)</p>
+  <table><thead><tr><th>severity</th><th>confidence</th><th>file</th><th>line</th><th>test_id</th><th>text</th></tr></thead><tbody><tr><td>LOW</td><td>HIGH</td><td>/Users/shyamshrestha/crypto-price-prediction/api/auth.py</td><td>639</td><td>B110</td><td>Try, Except, Pass detected.</td></tr><tr><td>LOW</td><td>HIGH</td><td>/Users/shyamshrestha/crypto-price-prediction/api/auth.py</td><td>801</td><td>B112</td><td>Try, Except, Continue detected.</td></tr><tr><td>LOW</td><td>HIGH</td><td>/Users/shyamshrestha/crypto-price-prediction/api/auth.py</td><td>803</td><td>B110</td><td>Try, Except, Pass detected.</td></tr><tr><td>MEDIUM</td><td>MEDIUM</td><td>/Users/shyamshrestha/crypto-price-prediction/api/auth.py</td><td>1827</td><td>B608</td><td>Possible SQL injection vector through string-based query construction.</td></tr><tr><td>LOW</td><td>HIGH</td><td>/Users/shyamshrestha/crypto-price-prediction/api/auth.py</td><td>1951</td><td>B110</td><td>Try, Except, Pass detected.</td></tr><tr><td>LOW</td><td>HIGH</td><td>/Users/shyamshrestha/crypto-price-prediction/api/auth.py</td><td>2402</td><td>B112</td><td>Try, Except, Continue detected.</td></tr><tr><td>LOW</td><td>HIGH</td><td>/Users/shyamshrestha/crypto-price-prediction/api/auth.py</td><td>2405</td><td>B110</td><td>Try, Except, Pass detected.</td></tr><tr><td>LOW</td><td>HIGH</td><td>/Users/shyamshrestha/crypto-price-prediction/api/main.py</td><td>9</td><td>B405</td><td>Using xml.etree.ElementTree to parse untrusted XML data is known to be vulnerable to XML attacks. Replace xml.etree.ElementTree with the equivalent defusedxml package, or make sure defusedxml.defuse_stdlib() is called.</td></tr><tr><td>MEDIUM</td><td>HIGH</td><td>/Users/shyamshrestha/crypto-price-prediction/api/main.py</td><td>275</td><td>B310</td><td>Audit url open for permitted schemes. Allowing use of file:/ or custom schemes is often unexpected.</td></tr><tr><td>MEDIUM</td><td>HIGH</td><td>/Users/shyamshrestha/crypto-price-prediction/api/main.py</td><td>277</td><td>B314</td><td>Using xml.etree.ElementTree.fromstring to parse untrusted XML data is known to be vulnerable to XML attacks. Replace xml.etree.ElementTree.fromstring with its defusedxml equivalent function or make sure defusedxml.defuse_stdlib() is called</td></tr><tr><td>MEDIUM</td><td>HIGH</td><td>/Users/shyamshrestha/crypto-price-prediction/api/main.py</td><td>354</td><td>B310</td><td>Audit url open for permitted schemes. Allowing use of file:/ or custom schemes is often unexpected.</td></tr><tr><td>MEDIUM</td><td>HIGH</td><td>/Users/shyamshrestha/crypto-price-prediction/api/main.py</td><td>356</td><td>B314</td><td>Using xml.etree.ElementTree.fromstring to parse untrusted XML data is known to be vulnerable to XML attacks. Replace xml.etree.ElementTree.fromstring with its defusedxml equivalent function or make sure defusedxml.defuse_stdlib() is called</td></tr><tr><td>LOW</td><td>HIGH</td><td>/Users/shyamshrestha/crypto-price-prediction/api/main.py</td><td>367</td><td>B112</td><td>Try, Except, Continue detected.</td></tr><tr><td>MEDIUM</td><td>HIGH</td><td>/Users/shyamshrestha/crypto-price-prediction/api/main.py</td><td>388</td><td>B310</td><td>Audit url open for permitted schemes. Allowing use of file:/ or custom schemes is often unexpected.</td></tr><tr><td>MEDIUM</td><td>HIGH</td><td>/Users/shyamshrestha/crypto-price-prediction/api/main.py</td><td>520</td><td>B310</td><td>Audit url open for permitted schemes. Allowing use of file:/ or custom schemes is often unexpected.</td></tr><tr><td>MEDIUM</td><td>HIGH</td><td>/Users/shyamshrestha/crypto-price-prediction/api/main.py</td><td>647</td><td>B310</td><td>Audit url open for permitted schemes. Allowing use of file:/ or custom schemes is often unexpected.</td></tr><tr><td>MEDIUM</td><td>HIGH</td><td>/Users/shyamshrestha/crypto-price-prediction/api/main.py</td><td>649</td><td>B310</td><td>Audit url open for permitted schemes. Allowing use of file:/ or custom schemes is often unexpected.</td></tr><tr><td>LOW</td><td>HIGH</td><td>/Users/shyamshrestha/crypto-price-prediction/api/main.py</td><td>672</td><td>B110</td><td>Try, Except, Pass detected.</td></tr></tbody></table>
+
+  <h2>Semgrep</h2>
+  <p>Findings: <strong>0</strong> (INFO=0, WARNING=0, ERROR=0)</p>
+  <p class='ok'>No findings.</p>
+</body>
+</html>

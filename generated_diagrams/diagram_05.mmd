@@ -1,0 +1,49 @@
+erDiagram
+    USERS ||--o{ SESSIONS : has
+    USERS ||--o{ ACTIVITY_LOGS : generates
+    USERS ||--o{ PREDICTION_HISTORY : creates
+    USERS ||--o{ ALERTS : owns
+    USERS ||--o{ PORTFOLIO_HOLDINGS : owns
+    USERS ||--o{ EXPERIMENTS : runs
+
+    CRYPTO_CONFIGS ||--o{ HISTORICAL_PRICES : defines_symbol
+    CRYPTO_CONFIGS ||--o{ EXPERIMENTS : modeling_target
+    CRYPTO_CONFIGS ||--o{ ALERTS : alert_target
+    CRYPTO_CONFIGS ||--o{ PORTFOLIO_HOLDINGS : holding_symbol
+
+    MODEL_CONFIGS ||--o{ EXPERIMENTS : constrains_options
+
+    USERS {
+      int id PK
+      string email
+      string role
+      string status
+      string twofa_secret
+      bool twofa_enabled
+      datetime created_at
+    }
+
+    EXPERIMENTS {
+      int id PK
+      int researcher_id FK
+      string symbol
+      string model_name
+      string metrics_json
+      string artifact_path
+      bool is_deployed
+      datetime created_at
+    }
+
+    ALERTS {
+      int id PK
+      int user_id FK
+      string symbol
+      string alert_type
+      float threshold_value
+      string direction
+      string sentiment_label
+      bool is_enabled
+      bool email_enabled
+      datetime last_notified_at
+    }
+

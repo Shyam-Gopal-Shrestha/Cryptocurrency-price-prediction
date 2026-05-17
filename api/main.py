@@ -7,6 +7,7 @@ import json
 import logging
 import re
 import xml.etree.ElementTree as ET
+from collections.abc import AsyncIterator
 from datetime import datetime, timezone
 from urllib.error import HTTPError
 from urllib.parse import quote
@@ -103,12 +104,28 @@ NEGATIVE_WORDS = {
     "red", "risk", "uncertain", "volatility", "volatile", "decline", "fall",
 }
 
-app = FastAPI()
-app.include_router(auth_router)
 logger = logging.getLogger("uvicorn.error")
 
 EMAILJS_SEND_URL = "https://api.emailjs.com/api/v1.0/email/send"
 ALERT_EMAIL_INTERVAL_SECONDS = max(300, int(os.getenv("ALERT_EMAIL_INTERVAL_SECONDS", "3600")))
+
+
+@contextlib.asynccontextmanager
+async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+    app.state.alert_email_task = asyncio.create_task(_alert_email_worker())
+    try:
+        yield
+    finally:
+        task = getattr(app.state, "alert_email_task", None)
+        if task is not None:
+            task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await task
+        app.state.alert_email_task = None
+
+
+app = FastAPI(lifespan=lifespan)
+app.include_router(auth_router)
 
 # Allow CORS for frontend (explicit whitelisted origins for development)
 app.add_middleware(
@@ -603,23 +620,6 @@ async def _alert_email_worker() -> None:
         except Exception as exc:
             logger.exception("Alert email worker failed: %s", exc)
         await asyncio.sleep(ALERT_EMAIL_INTERVAL_SECONDS)
-
-
-@app.on_event("startup")
-async def startup_alert_email_worker() -> None:
-    if getattr(app.state, "alert_email_task", None) is None:
-        app.state.alert_email_task = asyncio.create_task(_alert_email_worker())
-
-
-@app.on_event("shutdown")
-async def shutdown_alert_email_worker() -> None:
-    task = getattr(app.state, "alert_email_task", None)
-    if task is None:
-        return
-    task.cancel()
-    with contextlib.suppress(asyncio.CancelledError):
-        await task
-    app.state.alert_email_task = None
 
 
 @app.get("/api/live-market")

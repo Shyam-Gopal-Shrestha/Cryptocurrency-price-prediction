@@ -1,0 +1,16 @@
+flowchart TD
+    S[Hourly Scheduler Tick] --> Q[Load enabled alerts + approved users]
+    Q --> C[For each symbol: fetch latest price/change]
+    C --> T{Alert Type}
+    T -->|target| E1[Evaluate threshold crossing]
+    T -->|percent| E2[Evaluate 24h change]
+    T -->|sentiment| E3[Fetch sentiment + compare label]
+    E1 --> R{Triggered?}
+    E2 --> R
+    E3 --> R
+    R -->|No| N[Skip]
+    R -->|Yes| CD{Cooldown elapsed?}
+    CD -->|No| N
+    CD -->|Yes| M[Send EmailJS notification]
+    M --> U[Update last_notified_at]
+

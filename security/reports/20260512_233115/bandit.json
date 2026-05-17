@@ -1,0 +1,415 @@
+{
+  "errors": [],
+  "generated_at": "2026-05-12T13:31:43Z",
+  "metrics": {
+    "/Users/shyamshrestha/crypto-price-prediction/api/auth.py": {
+      "CONFIDENCE.HIGH": 6,
+      "CONFIDENCE.LOW": 0,
+      "CONFIDENCE.MEDIUM": 1,
+      "CONFIDENCE.UNDEFINED": 0,
+      "SEVERITY.HIGH": 0,
+      "SEVERITY.LOW": 6,
+      "SEVERITY.MEDIUM": 1,
+      "SEVERITY.UNDEFINED": 0,
+      "loc": 2051,
+      "nosec": 0,
+      "skipped_tests": 0
+    },
+    "/Users/shyamshrestha/crypto-price-prediction/api/main.py": {
+      "CONFIDENCE.HIGH": 11,
+      "CONFIDENCE.LOW": 0,
+      "CONFIDENCE.MEDIUM": 0,
+      "CONFIDENCE.UNDEFINED": 0,
+      "SEVERITY.HIGH": 0,
+      "SEVERITY.LOW": 3,
+      "SEVERITY.MEDIUM": 8,
+      "SEVERITY.UNDEFINED": 0,
+      "loc": 619,
+      "nosec": 0,
+      "skipped_tests": 0
+    },
+    "_totals": {
+      "CONFIDENCE.HIGH": 17,
+      "CONFIDENCE.LOW": 0,
+      "CONFIDENCE.MEDIUM": 1,
+      "CONFIDENCE.UNDEFINED": 0,
+      "SEVERITY.HIGH": 0,
+      "SEVERITY.LOW": 9,
+      "SEVERITY.MEDIUM": 9,
+      "SEVERITY.UNDEFINED": 0,
+      "loc": 2670,
+      "nosec": 0,
+      "skipped_tests": 0
+    }
+  },
+  "results": [
+    {
+      "code": "638                     live_prev = float(closes[-2])\n639     except Exception:\n640         pass\n641 \n",
+      "col_offset": 4,
+      "end_col_offset": 12,
+      "filename": "/Users/shyamshrestha/crypto-price-prediction/api/auth.py",
+      "issue_confidence": "HIGH",
+      "issue_cwe": {
+        "id": 703,
+        "link": "https://cwe.mitre.org/data/definitions/703.html"
+      },
+      "issue_severity": "LOW",
+      "issue_text": "Try, Except, Pass detected.",
+      "line_number": 639,
+      "line_range": [
+        639,
+        640
+      ],
+      "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b110_try_except_pass.html",
+      "test_id": "B110",
+      "test_name": "try_except_pass"
+    },
+    {
+      "code": "800                     return text, \"gemini\"\n801             except Exception:\n802                 continue\n803     except Exception:\n",
+      "col_offset": 12,
+      "end_col_offset": 24,
+      "filename": "/Users/shyamshrestha/crypto-price-prediction/api/auth.py",
+      "issue_confidence": "HIGH",
+      "issue_cwe": {
+        "id": 703,
+        "link": "https://cwe.mitre.org/data/definitions/703.html"
+      },
+      "issue_severity": "LOW",
+      "issue_text": "Try, Except, Continue detected.",
+      "line_number": 801,
+      "line_range": [
+        801,
+        802
+      ],
+      "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b112_try_except_continue.html",
+      "test_id": "B112",
+      "test_name": "try_except_continue"
+    },
+    {
+      "code": "802                 continue\n803     except Exception:\n804         pass\n805 \n",
+      "col_offset": 4,
+      "end_col_offset": 12,
+      "filename": "/Users/shyamshrestha/crypto-price-prediction/api/auth.py",
+      "issue_confidence": "HIGH",
+      "issue_cwe": {
+        "id": 703,
+        "link": "https://cwe.mitre.org/data/definitions/703.html"
+      },
+      "issue_severity": "LOW",
+      "issue_text": "Try, Except, Pass detected.",
+      "line_number": 803,
+      "line_range": [
+        803,
+        804
+      ],
+      "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b110_try_except_pass.html",
+      "test_id": "B110",
+      "test_name": "try_except_pass"
+    },
+    {
+      "code": "1826         conn.execute(\n1827             f\"UPDATE alerts SET {', '.join(updates)} WHERE id = ? AND user_id = ?\",\n1828             (*params, alert_id, current_user[\"id\"]),\n",
+      "col_offset": 12,
+      "end_col_offset": 82,
+      "filename": "/Users/shyamshrestha/crypto-price-prediction/api/auth.py",
+      "issue_confidence": "MEDIUM",
+      "issue_cwe": {
+        "id": 89,
+        "link": "https://cwe.mitre.org/data/definitions/89.html"
+      },
+      "issue_severity": "MEDIUM",
+      "issue_text": "Possible SQL injection vector through string-based query construction.",
+      "line_number": 1827,
+      "line_range": [
+        1827
+      ],
+      "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b608_hardcoded_sql_expressions.html",
+      "test_id": "B608",
+      "test_name": "hardcoded_sql_expressions"
+    },
+    {
+      "code": "1950             risk_level = rl\n1951         except Exception:\n1952             pass\n1953 \n",
+      "col_offset": 8,
+      "end_col_offset": 16,
+      "filename": "/Users/shyamshrestha/crypto-price-prediction/api/auth.py",
+      "issue_confidence": "HIGH",
+      "issue_cwe": {
+        "id": 703,
+        "link": "https://cwe.mitre.org/data/definitions/703.html"
+      },
+      "issue_severity": "LOW",
+      "issue_text": "Try, Except, Pass detected.",
+      "line_number": 1951,
+      "line_range": [
+        1951,
+        1952
+      ],
+      "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b110_try_except_pass.html",
+      "test_id": "B110",
+      "test_name": "try_except_pass"
+    },
+    {
+      "code": "2401                     return {\"reply\": text, \"provider\": \"gemini\"}\n2402             except Exception:\n2403                 continue\n2404 \n",
+      "col_offset": 12,
+      "end_col_offset": 24,
+      "filename": "/Users/shyamshrestha/crypto-price-prediction/api/auth.py",
+      "issue_confidence": "HIGH",
+      "issue_cwe": {
+        "id": 703,
+        "link": "https://cwe.mitre.org/data/definitions/703.html"
+      },
+      "issue_severity": "LOW",
+      "issue_text": "Try, Except, Continue detected.",
+      "line_number": 2402,
+      "line_range": [
+        2402,
+        2403
+      ],
+      "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b112_try_except_continue.html",
+      "test_id": "B112",
+      "test_name": "try_except_continue"
+    },
+    {
+      "code": "2404 \n2405     except Exception:\n2406         pass\n2407 \n",
+      "col_offset": 4,
+      "end_col_offset": 12,
+      "filename": "/Users/shyamshrestha/crypto-price-prediction/api/auth.py",
+      "issue_confidence": "HIGH",
+      "issue_cwe": {
+        "id": 703,
+        "link": "https://cwe.mitre.org/data/definitions/703.html"
+      },
+      "issue_severity": "LOW",
+      "issue_text": "Try, Except, Pass detected.",
+      "line_number": 2405,
+      "line_range": [
+        2405,
+        2406
+      ],
+      "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b110_try_except_pass.html",
+      "test_id": "B110",
+      "test_name": "try_except_pass"
+    },
+    {
+      "code": "8 import re\n9 import xml.etree.ElementTree as ET\n10 from collections.abc import AsyncIterator\n",
+      "col_offset": 0,
+      "end_col_offset": 34,
+      "filename": "/Users/shyamshrestha/crypto-price-prediction/api/main.py",
+      "issue_confidence": "HIGH",
+      "issue_cwe": {
+        "id": 20,
+        "link": "https://cwe.mitre.org/data/definitions/20.html"
+      },
+      "issue_severity": "LOW",
+      "issue_text": "Using xml.etree.ElementTree to parse untrusted XML data is known to be vulnerable to XML attacks. Replace xml.etree.ElementTree with the equivalent defusedxml package, or make sure defusedxml.defuse_stdlib() is called.",
+      "line_number": 9,
+      "line_range": [
+        9
+      ],
+      "more_info": "https://bandit.readthedocs.io/en/1.9.4/blacklists/blacklist_imports.html#b405-import-xml-etree",
+      "test_id": "B405",
+      "test_name": "blacklist"
+    },
+    {
+      "code": "274     try:\n275         with urlopen(Request(rss_url, headers=req_headers), timeout=10) as resp:\n276             payload = resp.read()\n",
+      "col_offset": 13,
+      "end_col_offset": 71,
+      "filename": "/Users/shyamshrestha/crypto-price-prediction/api/main.py",
+      "issue_confidence": "HIGH",
+      "issue_cwe": {
+        "id": 22,
+        "link": "https://cwe.mitre.org/data/definitions/22.html"
+      },
+      "issue_severity": "MEDIUM",
+      "issue_text": "Audit url open for permitted schemes. Allowing use of file:/ or custom schemes is often unexpected.",
+      "line_number": 275,
+      "line_range": [
+        275
+      ],
+      "more_info": "https://bandit.readthedocs.io/en/1.9.4/blacklists/blacklist_calls.html#b310-urllib-urlopen",
+      "test_id": "B310",
+      "test_name": "blacklist"
+    },
+    {
+      "code": "276             payload = resp.read()\n277         root = ET.fromstring(payload)\n278         out = []\n",
+      "col_offset": 15,
+      "end_col_offset": 37,
+      "filename": "/Users/shyamshrestha/crypto-price-prediction/api/main.py",
+      "issue_confidence": "HIGH",
+      "issue_cwe": {
+        "id": 20,
+        "link": "https://cwe.mitre.org/data/definitions/20.html"
+      },
+      "issue_severity": "MEDIUM",
+      "issue_text": "Using xml.etree.ElementTree.fromstring to parse untrusted XML data is known to be vulnerable to XML attacks. Replace xml.etree.ElementTree.fromstring with its defusedxml equivalent function or make sure defusedxml.defuse_stdlib() is called",
+      "line_number": 277,
+      "line_range": [
+        277
+      ],
+      "more_info": "https://bandit.readthedocs.io/en/1.9.4/blacklists/blacklist_calls.html#b313-b320-xml-bad-elementtree",
+      "test_id": "B314",
+      "test_name": "blacklist"
+    },
+    {
+      "code": "353         try:\n354             with urlopen(Request(url, headers=req_headers), timeout=10) as resp:\n355                 payload = resp.read()\n",
+      "col_offset": 17,
+      "end_col_offset": 71,
+      "filename": "/Users/shyamshrestha/crypto-price-prediction/api/main.py",
+      "issue_confidence": "HIGH",
+      "issue_cwe": {
+        "id": 22,
+        "link": "https://cwe.mitre.org/data/definitions/22.html"
+      },
+      "issue_severity": "MEDIUM",
+      "issue_text": "Audit url open for permitted schemes. Allowing use of file:/ or custom schemes is often unexpected.",
+      "line_number": 354,
+      "line_range": [
+        354
+      ],
+      "more_info": "https://bandit.readthedocs.io/en/1.9.4/blacklists/blacklist_calls.html#b310-urllib-urlopen",
+      "test_id": "B310",
+      "test_name": "blacklist"
+    },
+    {
+      "code": "355                 payload = resp.read()\n356             root = ET.fromstring(payload)\n357             out = []\n",
+      "col_offset": 19,
+      "end_col_offset": 41,
+      "filename": "/Users/shyamshrestha/crypto-price-prediction/api/main.py",
+      "issue_confidence": "HIGH",
+      "issue_cwe": {
+        "id": 20,
+        "link": "https://cwe.mitre.org/data/definitions/20.html"
+      },
+      "issue_severity": "MEDIUM",
+      "issue_text": "Using xml.etree.ElementTree.fromstring to parse untrusted XML data is known to be vulnerable to XML attacks. Replace xml.etree.ElementTree.fromstring with its defusedxml equivalent function or make sure defusedxml.defuse_stdlib() is called",
+      "line_number": 356,
+      "line_range": [
+        356
+      ],
+      "more_info": "https://bandit.readthedocs.io/en/1.9.4/blacklists/blacklist_calls.html#b313-b320-xml-bad-elementtree",
+      "test_id": "B314",
+      "test_name": "blacklist"
+    },
+    {
+      "code": "366                 return out, \"twitter-rss\"\n367         except Exception:\n368             continue\n369     return [], \"unavailable\"\n",
+      "col_offset": 8,
+      "end_col_offset": 20,
+      "filename": "/Users/shyamshrestha/crypto-price-prediction/api/main.py",
+      "issue_confidence": "HIGH",
+      "issue_cwe": {
+        "id": 703,
+        "link": "https://cwe.mitre.org/data/definitions/703.html"
+      },
+      "issue_severity": "LOW",
+      "issue_text": "Try, Except, Continue detected.",
+      "line_number": 367,
+      "line_range": [
+        367,
+        368
+      ],
+      "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b112_try_except_continue.html",
+      "test_id": "B112",
+      "test_name": "try_except_continue"
+    },
+    {
+      "code": "387     try:\n388         with urlopen(Request(search_url, headers=req_headers), timeout=10) as resp:\n389             data = json.loads(resp.read().decode(\"utf-8\"))\n",
+      "col_offset": 13,
+      "end_col_offset": 74,
+      "filename": "/Users/shyamshrestha/crypto-price-prediction/api/main.py",
+      "issue_confidence": "HIGH",
+      "issue_cwe": {
+        "id": 22,
+        "link": "https://cwe.mitre.org/data/definitions/22.html"
+      },
+      "issue_severity": "MEDIUM",
+      "issue_text": "Audit url open for permitted schemes. Allowing use of file:/ or custom schemes is often unexpected.",
+      "line_number": 388,
+      "line_range": [
+        388
+      ],
+      "more_info": "https://bandit.readthedocs.io/en/1.9.4/blacklists/blacklist_calls.html#b310-urllib-urlopen",
+      "test_id": "B310",
+      "test_name": "blacklist"
+    },
+    {
+      "code": "519     try:\n520         with urlopen(req, timeout=15) as resp:\n521             status = getattr(resp, \"status\", 200)\n",
+      "col_offset": 13,
+      "end_col_offset": 37,
+      "filename": "/Users/shyamshrestha/crypto-price-prediction/api/main.py",
+      "issue_confidence": "HIGH",
+      "issue_cwe": {
+        "id": 22,
+        "link": "https://cwe.mitre.org/data/definitions/22.html"
+      },
+      "issue_severity": "MEDIUM",
+      "issue_text": "Audit url open for permitted schemes. Allowing use of file:/ or custom schemes is often unexpected.",
+      "line_number": 520,
+      "line_range": [
+        520
+      ],
+      "more_info": "https://bandit.readthedocs.io/en/1.9.4/blacklists/blacklist_calls.html#b310-urllib-urlopen",
+      "test_id": "B310",
+      "test_name": "blacklist"
+    },
+    {
+      "code": "646         req_headers = {\"User-Agent\": \"crypto-price-prediction/1.0\"}\n647         with urlopen(Request(chart_url, headers=req_headers), timeout=12) as chart_resp:\n648             chart_data = json.loads(chart_resp.read().decode(\"utf-8\"))\n",
+      "col_offset": 13,
+      "end_col_offset": 73,
+      "filename": "/Users/shyamshrestha/crypto-price-prediction/api/main.py",
+      "issue_confidence": "HIGH",
+      "issue_cwe": {
+        "id": 22,
+        "link": "https://cwe.mitre.org/data/definitions/22.html"
+      },
+      "issue_severity": "MEDIUM",
+      "issue_text": "Audit url open for permitted schemes. Allowing use of file:/ or custom schemes is often unexpected.",
+      "line_number": 647,
+      "line_range": [
+        647
+      ],
+      "more_info": "https://bandit.readthedocs.io/en/1.9.4/blacklists/blacklist_calls.html#b310-urllib-urlopen",
+      "test_id": "B310",
+      "test_name": "blacklist"
+    },
+    {
+      "code": "648             chart_data = json.loads(chart_resp.read().decode(\"utf-8\"))\n649         with urlopen(Request(price_url, headers=req_headers), timeout=12) as price_resp:\n650             price_data = json.loads(price_resp.read().decode(\"utf-8\"))\n",
+      "col_offset": 13,
+      "end_col_offset": 73,
+      "filename": "/Users/shyamshrestha/crypto-price-prediction/api/main.py",
+      "issue_confidence": "HIGH",
+      "issue_cwe": {
+        "id": 22,
+        "link": "https://cwe.mitre.org/data/definitions/22.html"
+      },
+      "issue_severity": "MEDIUM",
+      "issue_text": "Audit url open for permitted schemes. Allowing use of file:/ or custom schemes is often unexpected.",
+      "line_number": 649,
+      "line_range": [
+        649
+      ],
+      "more_info": "https://bandit.readthedocs.io/en/1.9.4/blacklists/blacklist_calls.html#b310-urllib-urlopen",
+      "test_id": "B310",
+      "test_name": "blacklist"
+    },
+    {
+      "code": "671         }\n672     except Exception:\n673         pass\n674 \n",
+      "col_offset": 4,
+      "end_col_offset": 12,
+      "filename": "/Users/shyamshrestha/crypto-price-prediction/api/main.py",
+      "issue_confidence": "HIGH",
+      "issue_cwe": {
+        "id": 703,
+        "link": "https://cwe.mitre.org/data/definitions/703.html"
+      },
+      "issue_severity": "LOW",
+      "issue_text": "Try, Except, Pass detected.",
+      "line_number": 672,
+      "line_range": [
+        672,
+        673
+      ],
+      "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b110_try_except_pass.html",
+      "test_id": "B110",
+      "test_name": "try_except_pass"
+    }
+  ]
+}

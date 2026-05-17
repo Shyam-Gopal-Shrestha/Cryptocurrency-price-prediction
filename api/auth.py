@@ -27,8 +27,8 @@ try:
     from xgboost import XGBRegressor
 
     HAS_XGBOOST = True
-except Exception:
-    HAS_XGBOOST = False
+except Exception:  # pragma: no cover
+    HAS_XGBOOST = False  # pragma: no cover
 
 
 DB_PATH = os.path.join(os.path.dirname(__file__), "auth.db")

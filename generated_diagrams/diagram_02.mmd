@@ -1,0 +1,18 @@
+flowchart LR
+    U[User Dashboard] -->|HTTPS| API[FastAPI Backend]
+    R[Researcher Workbench] -->|HTTPS| API
+    A[Admin Dashboard] -->|HTTPS| API
+
+    API --> DB[(SQLite: users, sessions, alerts, experiments, prices)]
+    API --> ART[(Model Artifacts: joblib)]
+    API --> YF[Yahoo Finance]
+    API --> CG[CoinGecko]
+    API --> GN[Google News RSS]
+    API --> XAPI[X API / Nitter RSS]
+    API --> EM[EmailJS]
+    API --> LLM[Gemini API]
+
+    API --> WRK[Hourly Alert Worker]
+    WRK --> DB
+    WRK --> EM
+

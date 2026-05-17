@@ -1,0 +1,18 @@
+flowchart TB
+    User((User)) --> UC1[Request Prediction]
+    User --> UC2[Manage Alerts]
+    User --> UC3[View Portfolio & Backtest]
+    User --> UC4[Read Sentiment/News]
+    User --> UC5[Enable 2FA]
+
+    Researcher((Researcher)) --> RC1[Fetch Data]
+    Researcher --> RC2[Preprocess Data]
+    Researcher --> RC3[Train Models]
+    Researcher --> RC4[Deploy Experiment]
+    Researcher --> RC5[Compare Experiments]
+
+    Admin((Admin)) --> AC1[Approve Users]
+    Admin --> AC2[Manage Roles]
+    Admin --> AC3[Configure Assets/Models]
+    Admin --> AC4[View Logs & API Usage]
+

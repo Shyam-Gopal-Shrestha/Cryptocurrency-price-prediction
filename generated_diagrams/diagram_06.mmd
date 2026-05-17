@@ -1,0 +1,9 @@
+flowchart LR
+    C[Code Commit] --> L[Lint + Format Check]
+    L --> T[Unit/API Tests]
+    T --> S[SAST + Dependency Scan]
+    S --> B[Build Artifacts]
+    B --> D[Deploy to Staging]
+    D --> U[UAT + DAST]
+    U --> P[Promote to Production]
+    P --> M[Post-Deploy Monitoring]
