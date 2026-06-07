@@ -6,17 +6,14 @@ import {
   useState,
 } from "react";
 import api from "../api/axios";
+import {
+  clearSessionState,
+  persistSessionState,
+  readStoredToken,
+  readStoredUser,
+} from "../features/auth/session";
 
 export const AuthContext = createContext(null);
-
-const TOKEN_KEY = "auth_token";
-const USER_KEY = "auth_user";
-
-const readStoredToken = () =>
-  sessionStorage.getItem(TOKEN_KEY) || localStorage.getItem(TOKEN_KEY) || "";
-
-const readStoredUser = () =>
-  sessionStorage.getItem(USER_KEY) || localStorage.getItem(USER_KEY) || "";
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
@@ -25,22 +22,13 @@ export function AuthProvider({ children }) {
 
   const persistSession = useCallback((nextToken, nextUser) => {
     // Use tab-scoped storage so different tabs can stay signed in as different users.
-    sessionStorage.setItem(TOKEN_KEY, nextToken);
-    sessionStorage.setItem(USER_KEY, JSON.stringify(nextUser));
-
-    // Clear legacy global storage to avoid cross-tab token overrides.
-    localStorage.removeItem(TOKEN_KEY);
-    localStorage.removeItem(USER_KEY);
-
+    persistSessionState(nextToken, nextUser);
     setToken(nextToken);
     setUser(nextUser);
   }, []);
 
   const clearSession = useCallback(() => {
-    sessionStorage.removeItem(TOKEN_KEY);
-    sessionStorage.removeItem(USER_KEY);
-    localStorage.removeItem(TOKEN_KEY);
-    localStorage.removeItem(USER_KEY);
+    clearSessionState();
     setToken("");
     setUser(null);
   }, []);

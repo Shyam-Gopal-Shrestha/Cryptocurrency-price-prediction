@@ -1,12 +1,12 @@
 import axios from "axios";
+import { readStoredToken } from "../features/auth/session";
 
 const api = axios.create({
   baseURL: "http://127.0.0.1:8000",
 });
 
 api.interceptors.request.use((config) => {
-  const token =
-    sessionStorage.getItem("auth_token") || localStorage.getItem("auth_token");
+  const token = readStoredToken();
   if (token) {
     config.headers = config.headers || {};
     config.headers.Authorization = `Bearer ${token}`;

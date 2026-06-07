@@ -8,7 +8,7 @@ from urllib.error import HTTPError
 import pandas as pd
 import pytest
 
-import api.auth as auth
+import api.core.runtime as auth
 import api.main as main
 
 

@@ -2,7 +2,7 @@ from datetime import datetime
 
 import pytest
 
-import api.auth as auth
+import api.core.runtime as auth
 
 
 class DummyCursor:

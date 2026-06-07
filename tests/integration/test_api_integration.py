@@ -4,7 +4,7 @@ import json
 import pytest
 from fastapi.testclient import TestClient
 
-import api.auth as auth
+import api.core.runtime as auth
 import api.main as main
 
 

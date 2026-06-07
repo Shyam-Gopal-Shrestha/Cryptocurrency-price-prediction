@@ -37,6 +37,7 @@ The alert scheduler runs in the FastAPI backend, so email delivery continues eve
 ### 1) Unit Tests + Coverage Gate
 
 Run from project root:
+surver running code : python -m uvicorn api.main:app --reload
 
 ```bash
 conda activate crypto_env

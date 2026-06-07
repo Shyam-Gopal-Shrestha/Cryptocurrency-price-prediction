@@ -1,0 +1,2162 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Crypto Poster UI</title>
+    <style>
+      @import url("https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&display=swap");
+
+      :root {
+        --bg: #1b2946;
+        --bg-2: #111926;
+        --panel: #ffffff;
+        --text: #202b3a;
+        --muted: #667287;
+        --line: #d8e0ec;
+        --cyan: #00bcd4;
+        --orange: #ffa726;
+        --green: #66bb6a;
+        --pink: #ec407a;
+        --purple: #ab47bc;
+        --red: #ef5350;
+        --teal: #0097a7;
+        --ink: #182336;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        font-family: "Manrope", sans-serif;
+        background:
+          radial-gradient(
+            circle at 12% 0%,
+            rgba(0, 188, 212, 0.16) 0%,
+            transparent 28%
+          ),
+          radial-gradient(
+            circle at 88% 8%,
+            rgba(171, 71, 188, 0.14) 0%,
+            transparent 35%
+          ),
+          linear-gradient(165deg, var(--bg) 0%, #172030 48%, var(--bg-2) 100%);
+        color: #fff;
+        min-height: 100vh;
+        padding: 20px;
+      }
+
+      .shell {
+        max-width: 1520px;
+        margin: 0 auto;
+      }
+
+      .toolbar {
+        display: flex;
+        justify-content: flex-end;
+        margin-bottom: 10px;
+      }
+
+      .print-btn {
+        border: 1px solid rgba(255, 255, 255, 0.36);
+        background: rgba(255, 255, 255, 0.08);
+        color: #fff;
+        border-radius: 999px;
+        padding: 8px 16px;
+        font-size: 12px;
+        font-weight: 700;
+        letter-spacing: 0.3px;
+        cursor: pointer;
+      }
+
+      .page {
+        /* A3 landscape page: 420mm wide x 297mm high */
+        width: 420mm;
+        min-height: 297mm;
+        max-width: 100%;
+        margin: 0 auto;
+        border-radius: 18px;
+        padding: 26px;
+        background: linear-gradient(
+          180deg,
+          rgba(255, 255, 255, 0.03) 0%,
+          rgba(255, 255, 255, 0) 18%
+        );
+        box-shadow: 0 30px 60px rgba(5, 9, 18, 0.45);
+      }
+
+      .header {
+        position: relative;
+        text-align: center;
+        padding: 5px 10px 8px;
+        /* reserve space on the right so the absolute QR won't overlap header content */
+        padding-right: 140px;
+      }
+
+      .kicker {
+        margin: 0 0 4px;
+        display: inline-flex;
+        align-items: center;
+        padding: 3px 9px;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.1);
+        border: 1px solid rgba(255, 255, 255, 0.18);
+        font-size: 9px;
+        font-weight: 800;
+        letter-spacing: 0.6px;
+        text-transform: uppercase;
+      }
+
+      .title {
+        margin: 0;
+        font-family: "Space Grotesk", sans-serif;
+        font-size: 48px;
+        line-height: 1.05;
+        letter-spacing: 0.1px;
+      }
+
+      .subtitle {
+        margin: 4px 0 0;
+        font-size: 12px;
+        color: #d7e3f2;
+      }
+
+      .hero-claim {
+        max-width: 860px;
+        margin: 6px auto 0;
+        padding: 5px 10px;
+        border-radius: 8px;
+        background: rgba(255, 255, 255, 0.08);
+        border: 1px solid rgba(255, 255, 255, 0.14);
+        font-size: 10px;
+        line-height: 1.4;
+        color: #eef5ff;
+      }
+
+      .badge-row {
+        margin-top: 12px;
+        display: flex;
+        flex-wrap: nowrap;
+        gap: 10px;
+        justify-content: center;
+        padding-bottom: 6px;
+      }
+
+      .badge {
+        border-radius: 999px;
+        font-size: 13px;
+        font-weight: 800;
+        padding: 8px 14px;
+        color: #fff;
+        line-height: 1.1;
+        flex: 1 1 0;
+        min-width: 0; /* allow shrinking */
+        text-align: center;
+        overflow: hidden;
+        white-space: nowrap;
+        text-overflow: ellipsis;
+      }
+
+      .b-cyan {
+        background: var(--cyan);
+      }
+      .b-orange {
+        background: var(--orange);
+      }
+      .b-green {
+        background: var(--green);
+      }
+      .b-pink {
+        background: var(--pink);
+      }
+      .b-purple {
+        background: var(--purple);
+      }
+
+      .meta {
+        margin-top: 6px;
+        font-size: 11px;
+        color: #7b95b3;
+      }
+
+      /* Header stats: colorful metric cards aligned horizontally */
+      .header-stats {
+        display: flex;
+        gap: 14px;
+        justify-content: center;
+        align-items: center;
+        margin-top: 12px;
+        margin-bottom: 6px;
+        flex-wrap: nowrap;
+      }
+
+      .header-stats .stat {
+        padding: 10px 14px;
+        border-radius: 12px;
+        min-width: 130px;
+        box-shadow: 0 8px 18px rgba(8, 18, 40, 0.08);
+        color: #fff;
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+      }
+
+      .header-stats .stat .value {
+        font-weight: 900;
+        font-size: 16px;
+        line-height: 1;
+      }
+
+      .header-stats .stat .label {
+        font-size: 11px;
+        opacity: 0.95;
+        margin-top: 4px;
+      }
+
+      .header-stats .stat .sparkline {
+        margin-top: 8px;
+        width: 100%;
+        height: 22px;
+      }
+
+      .stat.p-cyan {
+        background: linear-gradient(90deg, #06b6d4, #0284c7);
+      }
+      .stat.p-orange {
+        background: linear-gradient(90deg, #fb923c, #fb7185);
+      }
+      .stat.p-purple {
+        background: linear-gradient(90deg, #8b5cf6, #6d28d9);
+      }
+      .stat.p-green {
+        background: linear-gradient(90deg, #10b981, #059669);
+      }
+
+      .header-stats .stat svg {
+        width: 100%;
+        height: 22px;
+        display: block;
+      }
+      .header-stats .stat svg polyline {
+        stroke: rgba(255, 255, 255, 0.95);
+        stroke-width: 2;
+        fill: none;
+      }
+
+      .metrics {
+        margin-top: 10px;
+        display: grid;
+        grid-template-columns: repeat(6, minmax(0, 1fr));
+        gap: 10px;
+      }
+
+      .metric {
+        border-radius: 10px;
+        padding: 12px 8px;
+        text-align: center;
+        color: #fff;
+        box-shadow: 0 10px 20px rgba(0, 0, 0, 0.18);
+      }
+
+      .metric .value {
+        display: block;
+        font-family: "Space Grotesk", sans-serif;
+        font-size: 24px;
+        font-weight: 700;
+        line-height: 1;
+      }
+
+      .metric .label {
+        display: block;
+        font-size: 10px;
+        font-weight: 600;
+        margin-top: 4px;
+      }
+
+      .m1 {
+        background: linear-gradient(140deg, #00bcd4 0%, #009ab0 100%);
+      }
+      .m2 {
+        background: linear-gradient(140deg, #66bb6a 0%, #4ea752 100%);
+      }
+      .m3 {
+        background: linear-gradient(140deg, #ffa726 0%, #ef8f0e 100%);
+      }
+      .m4 {
+        background: linear-gradient(140deg, #ab47bc 0%, #8e2ca0 100%);
+      }
+      .m5 {
+        background: linear-gradient(140deg, #ef5350 0%, #d93835 100%);
+      }
+      .m6 {
+        background: linear-gradient(140deg, #0097a7 0%, #007784 100%);
+      }
+
+      .grid {
+        margin-top: 14px;
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 14px;
+        align-items: stretch;
+      }
+
+      .bottom-row {
+        margin-top: 14px;
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 14px;
+        align-items: stretch;
+      }
+
+      .third-row {
+        margin-top: 14px;
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 14px;
+        align-items: start;
+      }
+
+      .third-row.single {
+        grid-template-columns: 1fr;
+      }
+
+      .col {
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
+      }
+
+      .card {
+        background: var(--panel);
+        border-radius: 12px;
+        border: 1px solid var(--line);
+        box-shadow: 0 10px 22px rgba(17, 26, 40, 0.16);
+        color: var(--text);
+        padding: 11px;
+        display: flex;
+        flex-direction: column;
+      }
+
+      .card-title {
+        display: inline-block;
+        border-radius: 7px;
+        color: #fff;
+        font-size: 11px;
+        font-weight: 800;
+        letter-spacing: 0.4px;
+        padding: 5px 9px;
+        margin-bottom: 8px;
+      }
+
+      .t-red {
+        background: var(--red);
+      }
+      .t-teal {
+        background: var(--teal);
+      }
+      .t-orange {
+        background: var(--orange);
+      }
+      .t-ink {
+        background: var(--ink);
+      }
+      .t-purple {
+        background: var(--purple);
+      }
+      .t-green {
+        background: #4caf50;
+      }
+      .t-cyan {
+        background: var(--cyan);
+      }
+
+      .tiny {
+        font-size: 10.5px;
+        line-height: 1.42;
+      }
+
+      .muted {
+        color: var(--muted);
+      }
+
+      .list {
+        margin: 0;
+        padding: 0;
+        display: grid;
+        gap: 6px;
+      }
+
+      .item {
+        display: grid;
+        grid-template-columns: auto 1fr;
+        gap: 6px;
+      }
+
+      .x {
+        font-weight: 800;
+        color: #e84645;
+      }
+
+      .q {
+        font-weight: 700;
+        color: #1064a1;
+      }
+
+      .stack {
+        display: grid;
+        gap: 6px;
+      }
+
+      .panel {
+        border-radius: 8px;
+        padding: 7px;
+      }
+
+      .p-blue {
+        background: #e7f2ff;
+      }
+      .p-orange {
+        background: #fff3e2;
+      }
+      .p-purple {
+        background: #f4e9fb;
+      }
+      .p-green {
+        background: #e8f6ea;
+      }
+      .p-pink {
+        background: #ffeaf2;
+      }
+      .p-gray {
+        background: #f4f7fb;
+      }
+
+      .panel b {
+        display: block;
+        margin-bottom: 1px;
+      }
+
+      .coin-grid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 6px;
+        margin-bottom: 7px;
+      }
+
+      .coin {
+        color: #fff;
+        text-align: center;
+        border-radius: 8px;
+        padding: 8px 4px;
+      }
+
+      .coin b {
+        display: block;
+        font-size: 16px;
+      }
+
+      .coin small {
+        font-size: 10px;
+      }
+
+      .data-facts {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 7px;
+        margin-bottom: 8px;
+      }
+
+      .fact {
+        border-radius: 10px;
+        padding: 8px 9px;
+        background: linear-gradient(180deg, #f7fbff 0%, #eef6fd 100%);
+        border: 1px solid #d9e7f5;
+      }
+
+      .fact b {
+        display: block;
+        font-size: 15px;
+        color: #0d5a8d;
+        line-height: 1.1;
+      }
+
+      .fact span {
+        display: block;
+        margin-top: 2px;
+        font-size: 9.4px;
+        color: #536277;
+      }
+
+      .model-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 10.2px;
+      }
+
+      .model-table th,
+      .model-table td {
+        padding: 5px 4px;
+        border-bottom: 1px solid #e6ecf5;
+      }
+
+      .model-table th {
+        text-align: left;
+        color: #415068;
+      }
+
+      .model-table th:nth-child(n + 2),
+      .model-table td:nth-child(n + 2) {
+        text-align: right;
+      }
+
+      .mini-charts {
+        margin-top: 8px;
+        display: grid;
+        gap: 7px;
+      }
+
+      .chart-box {
+        border: 1px solid #e6ecf5;
+        border-radius: 8px;
+        padding: 6px;
+        background: #fbfdff;
+      }
+
+      .chart-title {
+        font-size: 9.6px;
+        font-weight: 800;
+        color: #415068;
+        margin-bottom: 4px;
+        letter-spacing: 0.2px;
+      }
+
+      .chart-row {
+        display: grid;
+        grid-template-columns: 78px 1fr 34px;
+        gap: 6px;
+        align-items: center;
+        font-size: 9.5px;
+      }
+
+      .chart-track {
+        height: 9px;
+        border-radius: 999px;
+        background: #e8edf5;
+        overflow: hidden;
+      }
+
+      .chart-fill {
+        height: 100%;
+        border-radius: 999px;
+        background: #1a2332;
+      }
+
+      .chart-fill.rf {
+        background: #ffa726;
+      }
+
+      .chart-fill.lr {
+        background: #ab47bc;
+      }
+
+      .rank-list {
+        display: grid;
+        gap: 6px;
+      }
+
+      .rank-row {
+        display: grid;
+        grid-template-columns: 95px 1fr 38px;
+        gap: 6px;
+        align-items: center;
+      }
+
+      .rank-track {
+        height: 11px;
+        border-radius: 999px;
+        background: #e8edf5;
+        overflow: hidden;
+      }
+
+      .rank-fill {
+        height: 100%;
+        border-radius: 999px;
+        background: linear-gradient(90deg, #00bcd4 0%, #0097a7 100%);
+      }
+
+      .rank-fill.alt {
+        background: linear-gradient(90deg, #ab47bc 0%, #7b1fa2 100%);
+      }
+
+      .results-grid {
+        margin-top: 18px;
+      }
+
+      .results-grid .card {
+        padding: 13px;
+      }
+
+      .hero-result {
+        border: 2px solid #a6def0;
+        box-shadow: 0 14px 28px rgba(0, 151, 167, 0.16);
+      }
+
+      .result-lead {
+        margin: 0 0 8px;
+        padding: 8px 10px;
+        border-radius: 10px;
+        background: linear-gradient(90deg, #e9fbff 0%, #f3f9ff 100%);
+        border: 1px solid #cdebf2;
+        color: #104f6d;
+        font-size: 10px;
+        line-height: 1.45;
+      }
+
+      .heatmap {
+        width: 100%;
+        border-collapse: separate;
+        border-spacing: 4px;
+        font-size: 9.5px;
+      }
+
+      .heatmap th {
+        text-align: center;
+        color: #415068;
+        font-size: 9px;
+      }
+
+      .heatmap td {
+        text-align: center;
+        padding: 5px 3px;
+        border-radius: 6px;
+        font-weight: 700;
+      }
+
+      .h-good {
+        background: #d7f5df;
+        color: #1b5e20;
+      }
+
+      .h-mid {
+        background: #e8f2ff;
+        color: #0d47a1;
+      }
+
+      .h-low {
+        background: #fff3e0;
+        color: #e65100;
+      }
+
+      .h-bad {
+        background: #ffebee;
+        color: #b71c1c;
+      }
+
+      .linechart {
+        border: 1px solid #e6ecf5;
+        border-radius: 8px;
+        background: #fbfdff;
+        padding: 6px;
+      }
+
+      .linechart svg {
+        width: 100%;
+        height: 120px;
+        display: block;
+      }
+
+      .legend {
+        display: flex;
+        gap: 10px;
+        font-size: 9px;
+        margin-top: 4px;
+      }
+
+      .dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        display: inline-block;
+        margin-right: 4px;
+      }
+
+      .month-bar {
+        display: grid;
+        grid-template-columns: 48px 1fr 34px;
+        gap: 6px;
+        align-items: center;
+      }
+
+      .track {
+        height: 13px;
+        border-radius: 999px;
+        background: #e8edf5;
+        overflow: hidden;
+      }
+
+      .fill {
+        height: 100%;
+        border-radius: 999px;
+        background: #1a2332;
+      }
+
+      .fill.orange {
+        background: #ffa726;
+      }
+      .fill.green {
+        background: #66bb6a;
+      }
+      .fill.purple {
+        background: #ab47bc;
+      }
+
+      .feat-bar {
+        display: grid;
+        grid-template-columns: 80px 1fr 34px;
+        gap: 6px;
+        align-items: center;
+      }
+
+      .feat-track {
+        height: 11px;
+        border-radius: 999px;
+        background: #e8edf5;
+        overflow: hidden;
+      }
+
+      .feat-fill {
+        height: 100%;
+        border-radius: 999px;
+        background: #1a2332;
+      }
+
+      .feat-fill.green {
+        background: #66bb6a;
+      }
+      .feat-fill.orange {
+        background: #ffa726;
+      }
+
+      .codeblock {
+        border-radius: 8px;
+        background: #1a2332;
+        color: #85ff9a;
+        padding: 8px;
+        font-family: "Courier New", monospace;
+        font-size: 9.6px;
+        line-height: 1.35;
+      }
+
+      .mermaid-wrap {
+        border: 1px solid #e6ecf5;
+        border-radius: 8px;
+        background: #fbfdff;
+        padding: 6px;
+        overflow: hidden;
+      }
+
+      .ensemble-mermaid {
+        font-size: 10px;
+      }
+
+      .footer {
+        margin-top: 14px;
+        border-radius: 14px;
+        background:
+          linear-gradient(
+            135deg,
+            rgba(255, 255, 255, 0.14) 0%,
+            rgba(255, 255, 255, 0) 34%
+          ),
+          linear-gradient(135deg, #0a2346 0%, #0f5f89 52%, #11b7d0 100%);
+        color: #fff;
+        padding: 6px 10px;
+        font-size: 10px;
+        line-height: 1.35;
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 6px;
+        align-items: center;
+        border: 1px solid rgba(255, 255, 255, 0.28);
+        box-shadow:
+          0 14px 28px rgba(4, 10, 20, 0.22),
+          inset 0 1px 0 rgba(255, 255, 255, 0.18);
+      }
+
+      .footer .footer-left {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        justify-content: center;
+      }
+
+      .footer .footer-right {
+        display: flex;
+        justify-content: flex-end;
+        align-items: center;
+      }
+      .footer .footer-right .footer-qr {
+        width: 100%;
+        display: flex;
+        flex-direction: column;
+        align-items: flex-end;
+        box-sizing: border-box;
+        padding-left: 6px;
+      }
+
+      .footer .footer-right .qr-frame {
+        width: 100%;
+        padding: 6px;
+        box-sizing: border-box;
+      }
+
+      .footer .footer-right .qr-frame img {
+        width: 80px;
+        height: auto;
+        display: block;
+      }
+
+      .footer .footer-right .qr-label {
+        text-align: right;
+        width: 100%;
+      }
+
+      .footer .team {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        font-weight: 800;
+        font-size: 12px;
+        width: 100%;
+      }
+
+      .footer .supervisor {
+        font-size: 12px;
+        color: rgba(255, 255, 255, 0.95);
+        font-weight: 900;
+        width: 100%;
+        padding: 3px 8px;
+      }
+
+      .demo-strip {
+        margin-top: 14px;
+        display: grid;
+        grid-template-columns: 150px 1fr;
+        gap: 14px;
+        align-items: center;
+        padding: 14px;
+        border-radius: 14px;
+        background: linear-gradient(135deg, #ffffff 0%, #f3f9ff 100%);
+        border: 1px solid #d8e6f4;
+        box-shadow: 0 12px 24px rgba(16, 40, 74, 0.12);
+        color: var(--text);
+      }
+
+      .qr-frame {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 10px;
+        border-radius: 12px;
+        background: linear-gradient(180deg, #fdfefe 0%, #eef5fb 100%);
+        border: 1px solid #d5e3f0;
+      }
+
+      .qr-frame img {
+        width: 126px;
+        height: 126px;
+        display: block;
+        border-radius: 8px;
+        background: #fff;
+      }
+
+      /* Header QR (small project link) */
+      .header-qr {
+        position: absolute;
+        right: 18px;
+        top: 12px;
+        width: 110px;
+        text-align: center;
+      }
+      .header-qr .qr-frame {
+        padding: 6px;
+      }
+      .header-qr .qr-frame img {
+        width: 96px;
+        height: 96px;
+      }
+      .header-qr .qr-label {
+        margin-top: 6px;
+        font-size: 11px;
+        color: #d7e3f2;
+        font-weight: 700;
+        letter-spacing: 0.2px;
+      }
+
+      /* Footer voting QR */
+      .footer-qr {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 4px;
+        justify-self: end;
+      }
+
+      .footer-qr .qr-frame {
+        padding: 4px;
+      }
+
+      .footer-qr .qr-frame img {
+        width: 60px;
+        height: 60px;
+        border-radius: 8px;
+        background: #fff;
+      }
+
+      .footer-qr .qr-label {
+        font-size: 11px;
+        color: #d7e3f2;
+        font-weight: 700;
+      }
+
+      /* utility: make a card span two grid columns */
+      .cards-grid .span-2 {
+        grid-column: span 2;
+      }
+
+      .demo-content {
+        display: grid;
+        gap: 7px;
+      }
+
+      .demo-title {
+        display: inline-flex;
+        align-items: center;
+        width: fit-content;
+        padding: 5px 10px;
+        border-radius: 999px;
+        background: linear-gradient(90deg, #00bcd4 0%, #0097a7 100%);
+        color: #fff;
+        font-size: 11px;
+        font-weight: 800;
+        letter-spacing: 0.4px;
+      }
+
+      .demo-headline {
+        margin: 0;
+        font-family: "Space Grotesk", sans-serif;
+        font-size: 20px;
+        line-height: 1.1;
+        color: #0d223e;
+      }
+
+      .demo-copy {
+        margin: 0;
+        font-size: 11px;
+        line-height: 1.5;
+        color: #4c5d72;
+      }
+
+      .demo-link {
+        display: inline-flex;
+        align-items: center;
+        width: fit-content;
+        padding: 7px 12px;
+        border-radius: 999px;
+        background: #0e2f58;
+        color: #fff;
+        text-decoration: none;
+        font-size: 10px;
+        font-weight: 800;
+        letter-spacing: 0.3px;
+      }
+
+      .footer .team {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        font-size: 13px;
+      }
+
+      .footer .team span {
+        display: inline-flex;
+        align-items: center;
+        padding: 4px 10px;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.14);
+        border: 1px solid rgba(255, 255, 255, 0.14);
+        opacity: 1;
+        font-weight: 700;
+      }
+
+      .footer .supervisor {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        padding: 6px 12px;
+        border-radius: 999px;
+        background: rgba(8, 20, 38, 0.34);
+        border: 1px solid rgba(255, 255, 255, 0.22);
+        font-weight: 800;
+        letter-spacing: 0.2px;
+        white-space: nowrap;
+      }
+
+      .feature-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 8px 10px;
+      }
+
+      .feature-item {
+        border-radius: 10px;
+        padding: 8px 9px;
+        background: #f8fbff;
+        border: 1px solid #e1eaf4;
+      }
+
+      .feature-item b {
+        display: block;
+        margin-bottom: 2px;
+      }
+
+      @media (max-width: 1200px) {
+        .page {
+          width: 100%;
+          min-height: auto;
+          padding: 16px;
+        }
+
+        .title {
+          font-size: 32px;
+        }
+
+        .subtitle {
+          font-size: 16px;
+        }
+
+        .metrics {
+          grid-template-columns: repeat(3, minmax(0, 1fr));
+        }
+
+        .grid {
+          grid-template-columns: 1fr;
+        }
+
+        .bottom-row {
+          grid-template-columns: 1fr;
+        }
+
+        .third-row {
+          grid-template-columns: 1fr;
+        }
+
+        .footer {
+          grid-template-columns: 1fr;
+          gap: 6px;
+        }
+
+        .demo-strip {
+          grid-template-columns: 1fr;
+          justify-items: center;
+          text-align: center;
+        }
+
+        .feature-grid,
+        .data-facts {
+          grid-template-columns: 1fr;
+        }
+
+        /* On narrower screens keep the QR inline and centered so it doesn't overlap */
+        .header {
+          padding-right: 16px;
+        }
+
+        .header-qr {
+          position: static;
+          margin: 10px auto 0;
+          width: 96px;
+          right: auto;
+          top: auto;
+        }
+
+        .header-qr .qr-frame img {
+          width: 80px;
+          height: 80px;
+        }
+      }
+
+      @media (max-width: 680px) {
+        body {
+          padding: 10px;
+        }
+
+        .metrics {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
+        .title {
+          font-size: 26px;
+        }
+
+        .subtitle {
+          font-size: 14px;
+        }
+      }
+
+      @page {
+        /* Print to A3 landscape */
+        size: A3 landscape;
+        margin: 0;
+      }
+
+      @media print {
+        html,
+        body {
+          /* Match A3 landscape for print */
+          width: 420mm;
+          height: 297mm;
+          overflow: hidden;
+        }
+
+        body {
+          background: #edf3f8;
+          padding: 0;
+          -webkit-print-color-adjust: exact;
+          print-color-adjust: exact;
+        }
+
+        .shell {
+          max-width: none;
+          margin: 0;
+        }
+
+        .toolbar {
+          display: none;
+        }
+
+        .page {
+          /* A3 landscape print dimensions */
+          width: 420mm;
+          min-height: 297mm;
+          height: 297mm;
+          border-radius: 0;
+          box-shadow: none;
+          padding: 10mm;
+          overflow: hidden;
+          transform: scale(0.96);
+          transform-origin: top left;
+          background: linear-gradient(
+            180deg,
+            #f6f9fc 0%,
+            #eef4fa 18%,
+            #ffffff 42%,
+            #f8fbfe 100%
+          );
+        }
+
+        .card,
+        .metric,
+        .footer {
+          box-shadow: none;
+        }
+
+        .footer {
+          border-color: rgba(10, 35, 70, 0.18);
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="shell">
+      <main class="page">
+        <header class="header">
+          <h1 class="title">Cryptocurrency Price Prediction</h1>
+          <p class="subtitle">
+            Linear Regression and Stacking delivered the strongest overall
+            accuracy, then were integrated into a live API-backed decision
+            support workflow.
+          </p>
+
+          <div class="badge-row">
+            <span class="badge b-cyan">4 Coins: BTC, ETH, ADA, SOL</span>
+            <span class="badge b-orange">2020-2024 Hourly OHLCV Data</span>
+            <span class="badge b-green">ML/DL + Ensemble Comparison</span>
+            <span class="badge b-pink">26 Engineered Indicators</span>
+            <span class="badge b-purple">Backtesting + Live API Dashboard</span>
+            <span class="badge b-cyan"
+              >AI Chat + Sentiment + Prediction Insights</span
+            >
+          </div>
+          <p class="meta">End-to-End Research Prototype | May 2026</p>
+
+          <div class="header-qr">
+            <div class="qr-frame">
+              <img
+                src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=https://example.com/crypto-price-prediction"
+                alt="Project link QR"
+              />
+            </div>
+            <div class="qr-label">Project link</div>
+          </div>
+        </header>
+
+        <section class="metrics">
+          <article class="metric m1">
+            <span class="value">384.47</span>
+            <span class="label">Best MAE (Linear Reg.)</span>
+          </article>
+          <article class="metric m2">
+            <span class="value">51.5%</span>
+            <span class="label">Best Directional Accuracy</span>
+          </article>
+          <article class="metric m3">
+            <span class="value">0.985</span>
+            <span class="label">Top R2 (Linear/Stacking)</span>
+          </article>
+          <article class="metric m4">
+            <span class="value">529.11</span>
+            <span class="label">Best RMSE (Stacking)</span>
+          </article>
+          <article class="metric m5">
+            <span class="value">8</span>
+            <span class="label">Models Compared</span>
+          </article>
+          <article class="metric m6">
+            <span class="value">4</span>
+            <span class="label">Coins (ADA, BTC, ETH, SOL)</span>
+          </article>
+        </section>
+
+        <section class="grid cards-grid">
+          <!-- Row 1: keep initial four cards -->
+          <article class="card">
+            <span class="card-title t-red">THE PROBLEM</span>
+            <div class="list tiny">
+              <div class="item">
+                <span class="x">✗</span
+                ><span
+                  >Cryptocurrency prices exhibit extreme volatility. Bitcoin
+                  dropped from $68K to $15.8K, down 74% in one year.</span
+                >
+              </div>
+              <div class="item">
+                <span class="x">✗</span
+                ><span
+                  >Traditional trading models are often unreliable under
+                  high-frequency non-linear price behavior.</span
+                >
+              </div>
+              <div class="item">
+                <span class="x">✗</span
+                ><span
+                  >Patterns are non-stationary and shift rapidly across market
+                  regimes.</span
+                >
+              </div>
+              <div class="item">
+                <span class="x">✗</span
+                ><span
+                  >External factors like sentiment and macro shocks strongly
+                  influence market direction.</span
+                >
+              </div>
+            </div>
+          </article>
+
+          <article class="card">
+            <span class="card-title t-teal">RESEARCH QUESTIONS</span>
+            <div class="list tiny">
+              <div class="item">
+                <span class="q">Q1:</span
+                ><span
+                  >What ML/DL models best predict short-term crypto prices using
+                  candle and volume data?</span
+                >
+              </div>
+              <div class="item">
+                <span class="q">Q2:</span
+                ><span
+                  >Can sequence models capture temporal patterns better than
+                  classical statistical methods?</span
+                >
+              </div>
+              <div class="item">
+                <span class="q">Q3:</span
+                ><span
+                  >Can predictions improve risk-adjusted metrics like Sharpe
+                  ratio?</span
+                >
+              </div>
+              <div class="item">
+                <span class="q">Q4:</span
+                ><span
+                  >How can this be deployed into a live dashboard with practical
+                  backtesting support?</span
+                >
+              </div>
+            </div>
+          </article>
+
+          <article class="card">
+            <span class="card-title t-teal">TECH USED</span>
+            <div class="stack tiny">
+              <div class="panel p-blue">
+                <b>Languages & Frameworks</b>
+                <span class="muted"
+                  >Python, FastAPI, React (Vite), HTML/CSS</span
+                >
+              </div>
+              <div class="panel p-purple">
+                <b>Modeling Stack</b>
+                <span class="muted"
+                  >Scikit-learn, TensorFlow/Keras, XGBoost, SVR, NLP/AI
+                  modules</span
+                >
+              </div>
+              <div class="panel p-orange">
+                <b>Data & Storage</b>
+                <span class="muted"
+                  >CoinGecko API, Yahoo Finance, SQLite, CSV</span
+                >
+              </div>
+              <div class="panel p-green">
+                <b>Evaluation & Reporting</b>
+                <span class="muted"
+                  >Pandas, NumPy, Matplotlib, Mermaid diagrams</span
+                >
+              </div>
+            </div>
+          </article>
+
+          <article class="card">
+            <span class="card-title t-orange">DATASET & DATA COLLECTION</span>
+            <div class="data-facts tiny">
+              <div class="fact">
+                <b>4 Assets</b>
+                <span>BTC, ETH, ADA, SOL</span>
+              </div>
+              <div class="fact">
+                <b>4 Years</b>
+                <span>Hourly market history from 2020 to 2024</span>
+              </div>
+              <div class="fact">
+                <b>OHLCV + 26</b>
+                <span>Core price-volume inputs plus technical indicators</span>
+              </div>
+              <div class="fact">
+                <b>2 Sources</b>
+                <span>CoinGecko API and Yahoo Finance cross-checked</span>
+              </div>
+            </div>
+            <!-- Removed Research Value, Collection Pipeline, and Feature Scope panels as requested -->
+          </article>
+
+          <!-- Row 2: Methodology, System Architecture, Heatmap, Model Performance -->
+          <article class="card">
+            <span class="card-title t-purple">METHODOLOGY</span>
+            <div class="list tiny">
+              <div
+                style="
+                  border-left: 3px solid #0ea5e9;
+                  padding-left: 7px;
+                  margin-bottom: 5px;
+                "
+              >
+                <b style="color: #0369a1">1. Data Collection & Preprocessing</b>
+                <div class="muted">
+                  Collected 4 years of hourly data and cleaned outliers/missing
+                  values.
+                </div>
+              </div>
+              <div
+                style="
+                  border-left: 3px solid #8b5cf6;
+                  padding-left: 7px;
+                  margin-bottom: 5px;
+                "
+              >
+                <b style="color: #6d28d9">2. Feature Engineering</b>
+                <div class="muted">
+                  Built 26 indicators including RSI, MACD, trend and volatility
+                  features.
+                </div>
+              </div>
+              <div
+                style="
+                  border-left: 3px solid #f59e0b;
+                  padding-left: 7px;
+                  margin-bottom: 5px;
+                "
+              >
+                <b style="color: #b45309">3. Multi-Model Training</b>
+                <div class="muted">
+                  Trained LSTM/GRU and compared with ensemble and baseline ML
+                  methods.
+                </div>
+              </div>
+              <div
+                style="
+                  border-left: 3px solid #10b981;
+                  padding-left: 7px;
+                  margin-bottom: 5px;
+                "
+              >
+                <b style="color: #047857">4. Walk-Forward Backtest</b>
+                <div class="muted">
+                  Time-aware 80/20 split with rolling validation against
+                  baseline strategy.
+                </div>
+              </div>
+              <div
+                style="
+                  border-left: 3px solid #ef4444;
+                  padding-left: 7px;
+                  margin-bottom: 5px;
+                "
+              >
+                <b style="color: #b91c1c">5. Statistical Evaluation</b>
+                <div class="muted">
+                  Used MAE/RMSE/R2 plus directional accuracy for signal quality.
+                </div>
+              </div>
+              <div
+                style="
+                  border-left: 3px solid #ec4899;
+                  padding-left: 7px;
+                  margin-bottom: 5px;
+                "
+              >
+                <b style="color: #be185d">6. Deployment</b>
+                <div class="muted">
+                  Integrated inference workflow into dashboard for live usage.
+                </div>
+              </div>
+            </div>
+          </article>
+
+          <article class="card">
+            <span class="card-title t-ink">SYSTEM ARCHITECTURE</span>
+            <div class="stack tiny">
+              <div class="panel p-blue">
+                <b>DATA LAYER</b
+                ><span class="muted"
+                  >APIs (CoinGecko, Yahoo Finance) to SQLite and CSV
+                  cache.</span
+                >
+              </div>
+              <div class="panel p-orange">
+                <b>FEATURE ENGINEERING</b
+                ><span class="muted"
+                  >RSI, MACD, Bollinger, lag features, normalization.</span
+                >
+              </div>
+              <div class="panel p-purple">
+                <b>MODEL LAYER</b
+                ><span class="muted"
+                  >LSTM and GRU (TensorFlow), Random Forest, Linear
+                  Regression.</span
+                >
+              </div>
+              <div class="panel p-green">
+                <b>EVALUATION</b
+                ><span class="muted"
+                  >MAE, RMSE, R2, Directional Accuracy and visual
+                  diagnostics.</span
+                >
+              </div>
+              <div class="panel p-pink">
+                <b>DEPLOYMENT</b
+                ><span class="muted"
+                  >Live dashboard with API-backed prediction services.</span
+                >
+              </div>
+              <div class="panel p-gray">
+                <b>MONITORING</b
+                ><span class="muted"
+                  >Drift checks, performance tracking, periodic retraining
+                  loop.</span
+                >
+              </div>
+            </div>
+          </article>
+
+          <article class="card">
+            <span class="card-title t-teal">PER-COIN HEATMAP (R2)</span>
+            <table class="heatmap tiny">
+              <thead>
+                <tr>
+                  <th>Model</th>
+                  <th>ADA</th>
+                  <th>BTC</th>
+                  <th>ETH</th>
+                  <th>SOL</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><b>Linear Reg.</b></td>
+                  <td class="h-good">0.989</td>
+                  <td class="h-good">0.987</td>
+                  <td class="h-good">0.981</td>
+                  <td class="h-good">0.983</td>
+                </tr>
+                <tr>
+                  <td><b>Stacking</b></td>
+                  <td class="h-good">0.989</td>
+                  <td class="h-good">0.987</td>
+                  <td class="h-good">0.981</td>
+                  <td class="h-good">0.982</td>
+                </tr>
+                <tr>
+                  <td><b>Blending</b></td>
+                  <td class="h-good">0.988</td>
+                  <td class="h-good">0.986</td>
+                  <td class="h-good">0.979</td>
+                  <td class="h-good">0.983</td>
+                </tr>
+                <tr>
+                  <td><b>Weighted Avg</b></td>
+                  <td class="h-good">0.986</td>
+                  <td class="h-good">0.987</td>
+                  <td class="h-mid">0.945</td>
+                  <td class="h-mid">0.967</td>
+                </tr>
+                <tr>
+                  <td><b>Random Forest</b></td>
+                  <td class="h-good">0.981</td>
+                  <td class="h-low">0.791</td>
+                  <td class="h-good">0.977</td>
+                  <td class="h-good">0.976</td>
+                </tr>
+                <tr>
+                  <td><b>XGBoost</b></td>
+                  <td class="h-mid">0.971</td>
+                  <td class="h-low">0.771</td>
+                  <td class="h-good">0.975</td>
+                  <td class="h-good">0.974</td>
+                </tr>
+                <tr>
+                  <td><b>SVR</b></td>
+                  <td class="h-good">0.984</td>
+                  <td class="h-bad">-8.951</td>
+                  <td class="h-low">0.455</td>
+                  <td class="h-mid">0.958</td>
+                </tr>
+              </tbody>
+            </table>
+            <div class="tiny muted" style="margin-top: 4px">
+              Green = stronger fit, orange/red = weaker fit or unstable
+              behavior.
+            </div>
+          </article>
+
+          <article class="card">
+            <span class="card-title t-green"
+              >MODEL PERFORMANCE ACROSS COINS</span
+            >
+            <div class="chart-box tiny">
+              <div class="chart-title">
+                MAE COMPARISON BY COIN (BEST 4 MODELS)
+              </div>
+              <div class="stack tiny" style="gap: 8px; margin-top: 10px">
+                <div class="month-bar">
+                  <span><b>ADA</b></span>
+                  <div class="track">
+                    <div class="fill orange" style="width: 72%"></div>
+                  </div>
+                  <span>284.3</span>
+                </div>
+                <div class="month-bar">
+                  <span><b>BTC</b></span>
+                  <div class="track">
+                    <div class="fill" style="width: 68%"></div>
+                  </div>
+                  <span>1455.0</span>
+                </div>
+                <div class="month-bar">
+                  <span><b>ETH</b></span>
+                  <div class="track">
+                    <div class="fill green" style="width: 88%"></div>
+                  </div>
+                  <span>87.2</span>
+                </div>
+                <div class="month-bar">
+                  <span><b>SOL</b></span>
+                  <div class="track">
+                    <div class="fill purple" style="width: 75%"></div>
+                  </div>
+                  <span>4.18</span>
+                </div>
+              </div>
+              <div class="tiny muted" style="margin-top: 8px">
+                Lower MAE indicates better price prediction accuracy. Linear
+                Regression and Stacking consistently deliver the lowest errors
+                across all coins.
+              </div>
+            </div>
+          </article>
+
+          <!-- Row 3: AI features, results, BTC actual vs predicted chart -->
+          <article class="card">
+            <span class="card-title t-purple"
+              >AI FEATURES & CORE CAPABILITIES</span
+            >
+            <div class="feature-grid tiny">
+              <div
+                class="feature-item"
+                style="
+                  border-left: 3px solid #0ea5e9;
+                  padding-left: 7px;
+                  background: #f0f9ff;
+                  border-radius: 0 6px 6px 0;
+                "
+              >
+                <b style="color: #0369a1">Multi-model forecasting engine</b>
+              </div>
+              <div
+                class="feature-item"
+                style="
+                  border-left: 3px solid #8b5cf6;
+                  padding-left: 7px;
+                  background: #faf5ff;
+                  border-radius: 0 6px 6px 0;
+                "
+              >
+                <b style="color: #6d28d9">Per-coin model selection</b>
+              </div>
+              <div
+                class="feature-item"
+                style="
+                  border-left: 3px solid #10b981;
+                  padding-left: 7px;
+                  background: #f0fdf4;
+                  border-radius: 0 6px 6px 0;
+                "
+              >
+                <b style="color: #047857">Walk-forward backtesting</b>
+              </div>
+              <div
+                class="feature-item"
+                style="
+                  border-left: 3px solid #f59e0b;
+                  padding-left: 7px;
+                  background: #fffbeb;
+                  border-radius: 0 6px 6px 0;
+                "
+              >
+                <b style="color: #b45309">Live API integration</b>
+              </div>
+              <div
+                class="feature-item"
+                style="
+                  border-left: 3px solid #06b6d4;
+                  padding-left: 7px;
+                  background: #ecfeff;
+                  border-radius: 0 6px 6px 0;
+                "
+              >
+                <b style="color: #0e7490">AI chat assistance</b>
+              </div>
+              <div
+                class="feature-item"
+                style="
+                  border-left: 3px solid #ef4444;
+                  padding-left: 7px;
+                  background: #fff1f2;
+                  border-radius: 0 6px 6px 0;
+                "
+              >
+                <b style="color: #b91c1c">Sentiment analysis</b>
+              </div>
+              <div
+                class="feature-item"
+                style="
+                  border-left: 3px solid #ec4899;
+                  padding-left: 7px;
+                  background: #fdf2f8;
+                  border-radius: 0 6px 6px 0;
+                "
+              >
+                <b style="color: #be185d">Prediction analysis</b>
+              </div>
+            </div>
+          </article>
+
+          <article class="card hero-result">
+            <span class="card-title t-cyan">RESULTS & MODEL COMPARISON</span>
+
+            <div class="chart-box tiny">
+              <div class="chart-title">OVERALL MODEL RANKING (TOP 5 BY R2)</div>
+              <div class="rank-list">
+                <div class="rank-row">
+                  <span>Linear Reg.</span>
+                  <div class="rank-track">
+                    <div class="rank-fill" style="width: 98.5%"></div>
+                  </div>
+                  <span>0.985</span>
+                </div>
+                <div class="rank-row">
+                  <span>Stacking</span>
+                  <div class="rank-track">
+                    <div class="rank-fill alt" style="width: 98.5%"></div>
+                  </div>
+                  <span>0.985</span>
+                </div>
+                <div class="rank-row">
+                  <span>Blending</span>
+                  <div class="rank-track">
+                    <div class="rank-fill" style="width: 98.4%"></div>
+                  </div>
+                  <span>0.984</span>
+                </div>
+                <div class="rank-row">
+                  <span>Weighted Avg</span>
+                  <div class="rank-track">
+                    <div class="rank-fill alt" style="width: 97.1%"></div>
+                  </div>
+                  <span>0.971</span>
+                </div>
+                <div class="rank-row">
+                  <span>Random Forest</span>
+                  <div class="rank-track">
+                    <div class="rank-fill" style="width: 93.1%"></div>
+                  </div>
+                  <span>0.931</span>
+                </div>
+              </div>
+            </div>
+            <div class="tiny" style="margin-top: 7px">
+              <b>Summary:</b> Eight models evaluated overall (including Inverse
+              Error, XGBoost, SVR); chart shows top performers for clarity.
+            </div>
+          </article>
+
+          <article class="card span-2">
+            <span class="card-title t-purple"
+              >BTC ACTUAL VS PREDICTED CLOSING PRICE</span
+            >
+            <div class="linechart tiny">
+              <svg
+                viewBox="0 0 540 130"
+                preserveAspectRatio="none"
+                style="height: 165px"
+                aria-label="BTC closing price actual vs predicted"
+              >
+                <!-- Y-axis line -->
+                <line
+                  x1="40"
+                  y1="5"
+                  x2="40"
+                  y2="107"
+                  stroke="#94a3b8"
+                  stroke-width="0.8"
+                />
+                <!-- X-axis line -->
+                <line
+                  x1="40"
+                  y1="107"
+                  x2="535"
+                  y2="107"
+                  stroke="#94a3b8"
+                  stroke-width="0.8"
+                />
+                <line
+                  x1="40"
+                  y1="88"
+                  x2="535"
+                  y2="88"
+                  stroke="#e6ecf5"
+                  stroke-width="0.6"
+                />
+                <line
+                  x1="40"
+                  y1="70"
+                  x2="535"
+                  y2="70"
+                  stroke="#e6ecf5"
+                  stroke-width="0.6"
+                />
+                <line
+                  x1="40"
+                  y1="51"
+                  x2="535"
+                  y2="51"
+                  stroke="#e6ecf5"
+                  stroke-width="0.6"
+                />
+                <line
+                  x1="40"
+                  y1="33"
+                  x2="535"
+                  y2="33"
+                  stroke="#e6ecf5"
+                  stroke-width="0.6"
+                />
+                <line
+                  x1="40"
+                  y1="14"
+                  x2="535"
+                  y2="14"
+                  stroke="#e6ecf5"
+                  stroke-width="0.6"
+                />
+                <text
+                  x="37"
+                  y="110"
+                  text-anchor="end"
+                  font-size="7.5"
+                  fill="#64748b"
+                >
+                  0
+                </text>
+                <text
+                  x="37"
+                  y="91"
+                  text-anchor="end"
+                  font-size="7.5"
+                  fill="#64748b"
+                >
+                  20k
+                </text>
+                <text
+                  x="37"
+                  y="73"
+                  text-anchor="end"
+                  font-size="7.5"
+                  fill="#64748b"
+                >
+                  40k
+                </text>
+                <text
+                  x="37"
+                  y="54"
+                  text-anchor="end"
+                  font-size="7.5"
+                  fill="#64748b"
+                >
+                  60k
+                </text>
+                <text
+                  x="37"
+                  y="36"
+                  text-anchor="end"
+                  font-size="7.5"
+                  fill="#64748b"
+                >
+                  80k
+                </text>
+                <text
+                  x="37"
+                  y="17"
+                  text-anchor="end"
+                  font-size="7.5"
+                  fill="#64748b"
+                >
+                  100k
+                </text>
+                <text
+                  x="9"
+                  y="60"
+                  text-anchor="middle"
+                  font-size="7.5"
+                  fill="#64748b"
+                  transform="rotate(-90,9,60)"
+                >
+                  Price (USD)
+                </text>
+                <line
+                  x1="40"
+                  y1="107"
+                  x2="40"
+                  y2="112"
+                  stroke="#94a3b8"
+                  stroke-width="0.8"
+                />
+                <line
+                  x1="118"
+                  y1="107"
+                  x2="118"
+                  y2="112"
+                  stroke="#94a3b8"
+                  stroke-width="0.8"
+                />
+                <line
+                  x1="196"
+                  y1="107"
+                  x2="196"
+                  y2="112"
+                  stroke="#94a3b8"
+                  stroke-width="0.8"
+                />
+                <line
+                  x1="275"
+                  y1="107"
+                  x2="275"
+                  y2="112"
+                  stroke="#94a3b8"
+                  stroke-width="0.8"
+                />
+                <line
+                  x1="353"
+                  y1="107"
+                  x2="353"
+                  y2="112"
+                  stroke="#94a3b8"
+                  stroke-width="0.8"
+                />
+                <line
+                  x1="431"
+                  y1="107"
+                  x2="431"
+                  y2="112"
+                  stroke="#94a3b8"
+                  stroke-width="0.8"
+                />
+                <line
+                  x1="535"
+                  y1="107"
+                  x2="535"
+                  y2="112"
+                  stroke="#94a3b8"
+                  stroke-width="0.8"
+                />
+                <text
+                  x="40"
+                  y="123"
+                  text-anchor="middle"
+                  font-size="7.5"
+                  fill="#64748b"
+                >
+                  2020
+                </text>
+                <text
+                  x="118"
+                  y="123"
+                  text-anchor="middle"
+                  font-size="7.5"
+                  fill="#64748b"
+                >
+                  2021
+                </text>
+                <text
+                  x="196"
+                  y="123"
+                  text-anchor="middle"
+                  font-size="7.5"
+                  fill="#64748b"
+                >
+                  2022
+                </text>
+                <text
+                  x="275"
+                  y="123"
+                  text-anchor="middle"
+                  font-size="7.5"
+                  fill="#64748b"
+                >
+                  2023
+                </text>
+                <text
+                  x="353"
+                  y="123"
+                  text-anchor="middle"
+                  font-size="7.5"
+                  fill="#64748b"
+                >
+                  2024
+                </text>
+                <text
+                  x="431"
+                  y="123"
+                  text-anchor="middle"
+                  font-size="7.5"
+                  fill="#64748b"
+                >
+                  2025
+                </text>
+                <text
+                  x="535"
+                  y="123"
+                  text-anchor="middle"
+                  font-size="7.5"
+                  fill="#64748b"
+                >
+                  May'26
+                </text>
+                <polyline
+                  points="40,101 53,102 73,99 112,80 138,48 157,79 183,43 196,72 229,89 262,92 275,86 333,76 353,65 366,39 398,51 418,24 431,10 437,28 451,30 535,12"
+                  fill="none"
+                  stroke="#1e40af"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                />
+                <polyline
+                  points="40,102 53,103 73,100 112,81 138,50 157,81 183,45 196,74 229,91 262,93 275,87 333,77 353,66 366,41 398,53 418,26 431,12 437,30 451,32 535,14"
+                  fill="none"
+                  stroke="#ea580c"
+                  stroke-width="1.8"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-dasharray="5 3"
+                />
+              </svg>
+              <div class="legend" style="margin-top: 6px">
+                <span
+                  ><i class="dot" style="background: #1e40af"></i>Actual</span
+                ><span style="margin-left: 12px"
+                  ><i class="dot" style="background: #ea580c"></i
+                  >Predicted</span
+                >
+              </div>
+              <div class="muted" style="margin-top: 3px; line-height: 1.3">
+                <b>MAE:</b> $1,286.02 | <b>RMSE:</b> $1,649.97. Model
+                predictions track actual prices with high precision across test
+                periods.
+              </div>
+            </div>
+          </article>
+        </section>
+
+        <!-- duplicate BTC chart removed; chart now occupies span-2 in the grid -->
+
+        <section class="bottom-row">
+          <article class="card">
+            <span class="card-title t-red">ETHICAL CONSIDERATIONS</span>
+            <div class="stack tiny">
+              <div
+                class="panel"
+                style="background: #fff3e8; border-left: 4px solid #fb8c00"
+              >
+                <b>Financial Risk</b
+                ><span class="muted"
+                  >Predictions are not trading advice and should be used
+                  responsibly.</span
+                >
+              </div>
+              <div
+                class="panel"
+                style="background: #fffbe8; border-left: 4px solid #f9a825"
+              >
+                <b>Data Bias</b
+                ><span class="muted"
+                  >Historical data does not capture every future market
+                  condition.</span
+                >
+              </div>
+              <div
+                class="panel"
+                style="background: #ebf8ef; border-left: 4px solid #43a047"
+              >
+                <b>Transparency</b
+                ><span class="muted"
+                  >Pipeline and methodology are documented for
+                  reproducibility.</span
+                >
+              </div>
+              <div
+                class="panel"
+                style="background: #eaf4ff; border-left: 4px solid #1e88e5"
+              >
+                <b>Market Impact</b
+                ><span class="muted"
+                  >Automated decisions can amplify volatility if safeguards are
+                  absent.</span
+                >
+              </div>
+            </div>
+          </article>
+
+          <article class="card">
+            <span class="card-title t-ink">CONCLUSION & FUTURE WORK</span>
+            <div class="stack tiny">
+              <div
+                class="panel"
+                style="background: #eff7ff; border-left: 4px solid #1e88e5"
+              >
+                Finding: Across four coins, the strongest performance came from
+                Linear Regression and ensemble-based methods rather than the
+                heaviest architectures.
+              </div>
+              <div
+                class="panel"
+                style="background: #ecf9ee; border-left: 4px solid #43a047"
+              >
+                Contribution: The study delivers an end-to-end pipeline from
+                data collection and feature engineering to backtesting and live
+                API deployment.
+              </div>
+              <div
+                class="panel"
+                style="background: #fff3e5; border-left: 4px solid #fb8c00"
+              >
+                Conclusion: Robust forecasting in crypto can be both accurate
+                and deployable when model choice is guided by comparative
+                evidence rather than model complexity alone.
+              </div>
+              <div
+                class="panel"
+                style="background: #f4ebfc; border-left: 4px solid #8e24aa"
+              >
+                Next step: expand feature enrichment with macroeconomic
+                indicators (rates, CPI, DXY, and equity indices).
+              </div>
+              <div
+                class="panel"
+                style="background: #ffecee; border-left: 4px solid #e53935"
+              >
+                Next step: test Transformer/attention-based models and
+                strengthen real-time risk controls.
+              </div>
+            </div>
+          </article>
+        </section>
+
+        <!-- demo-strip removed as requested -->
+
+        <footer class="footer">
+          <div class="footer-left">
+            <div class="team">
+              <div>Shyam Gopal Shrestha (Project Lead)</div>
+              <div>Anjali Thapa (Data & ML Specialist)</div>
+              <div>Sujan Prajapati (Systems & Testing Lead)</div>
+              <div>Shalu Pokheral (Evaluation & Ethics Lead)</div>
+            </div>
+            <div class="supervisor">Supervisor: Dr. Md Ashraf Uddin</div>
+          </div>
+
+          <div class="footer-right">
+            <div class="footer-qr">
+              <div class="qr-frame">
+                <img src="voting.png" alt="Voting QR" />
+              </div>
+            </div>
+          </div>
+
+          <div
+            style="
+              margin-top: 5px;
+              font-size: 12px;
+              color: #9fafca;
+              font-weight: 600;
+              letter-spacing: 0.3px;
+              grid-column: 1 / -1;
+              justify-self: center;
+              width: 100%;
+              text-align: center;
+            "
+          >
+            Crown Institute of Higher Education
+          </div>
+        </footer>
+      </main>
+    </div>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+    <script>
+      mermaid.initialize({ startOnLoad: true, securityLevel: "loose" });
+    </script>
+  </body>
+</html>
