@@ -1,5 +1,5 @@
 Coin,Model,RMSE,R2
-ADA-USD,Linear Regression,0.0233,0.9901
-BTC-USD,Weighted Average,1953.3064,0.9888
-ETH-USD,Linear Regression,111.8729,0.9834
-SOL-USD,Linear Regression,5.816,0.9855
+ADA-USD,Stacking,109.7608,0.9813
+BTC-USD,Stacking,109.7608,0.9813
+ETH-USD,Stacking,109.7608,0.9813
+SOL-USD,Stacking,109.7608,0.9813
